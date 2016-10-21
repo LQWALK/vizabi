@@ -557,7 +557,7 @@ describe('Web - Vizabi e2e test :: Bubble Chart', function() {
 
     // Clicking the bubble of USA
     browser.wait(EC.visibilityOf(USABubble), 5000).then(function(){
-      browser.actions().mouseMove(USABubble).mouseMove({x:0,y:-5}).click().perform();
+      browser.actions().mouseMove(USABubble).mouseMove({x:0,y:-15}).click().perform();
     });
     browser.sleep(3000);
 
