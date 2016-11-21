@@ -1,8 +1,8 @@
-var VIZABI_MODEL = { 
+var VIZABI_MODEL = {
   "state": {
     "time": {
-      "start": "1950",
-      "end": "2015",
+      "startOrigin": "1950",
+      "endOrigin": "2015",
       "value": "2015"
     },
     "entities": {
@@ -11,11 +11,8 @@ var VIZABI_MODEL = {
         "is--country": true
       }
     },
-    "entities_minimap": {
-      "dim": "geo",
-      "show": {
-        "is--world_4region": true
-      }
+    "entities_colorlegend": {
+      "dim": "geo"
     },
     "entities_tags": {
       "dim": "tag"
@@ -49,18 +46,19 @@ var VIZABI_MODEL = {
       },
       "color": {
         "use": "property",
-        "which": "world_4region"
+        "which": "world_4region",
+        "colorlegend": "marker_colorlegend"
       }
     },
-    "marker_minimap":{
-      "space": ["entities_minimap"],
+    "marker_colorlegend":{
+      "space": ["entities_colorlegend"],
         "type": "geometry",
         "shape": "svg",
         "label": {
           "use": "property",
           "which": "name"
         },
-        "geoshape": {
+        "hook_geoshape": {
           "use": "property",
           "which": "shape_lores_svg"
         }
@@ -71,10 +69,10 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "name"
       },
-      "parent": {
+      "hook_parent": {
         "use": "property",
         "which": "parent"
       }
     }
   }
-}
+};

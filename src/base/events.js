@@ -1,5 +1,5 @@
-import * as utils from 'utils';
-import Class from 'class';
+import * as utils from 'base/utils';
+import Class from 'base/class';
 
 var _freezeAllEvents = false;
 var _frozenEventInstances = [];
@@ -48,7 +48,7 @@ var EventSource = Class.extend({
    * @param {Function|Array} func function to be bound with event or array with functions
    */
   on: function(type, path, func) {
-    
+
     // if parameters had to be split up in seperate calls, don't continue with this call
     if (this.splitEventParameters(type, path, func, this.on))
       return;
@@ -108,7 +108,7 @@ var EventSource = Class.extend({
    * @param {String|Object|Array} type type of event
    * @param {String|Array} target path to object the event should be bound to or array of target paths
    * @param {Function|Array} func function to be bound with event or array with functions
-   * @param {Function} eventFunc function to further process the split up parameters 
+   * @param {Function} eventFunc function to further process the split up parameters
    * @return {Boolean} true if the parameters where split up, false if nothing was split up
    * eventFunc is mostly arguments.callee but this is deprecated in ECMAscript 5: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/arguments/callee
    */
@@ -140,10 +140,10 @@ var EventSource = Class.extend({
       func = path; // put callback function in func variable
       // on('type:path', func)
       if (type.indexOf(':') !== -1) {
-        var split = type.split(':');  
+        var split = type.split(':');
         type = split[0];
         path = split[1];
-      } 
+      }
       // on(type, func)
       else {
         path = undefined;
@@ -166,7 +166,7 @@ var EventSource = Class.extend({
         eventFunc.call(this, type, path, func[i]);
       }
       return true;
-    }   
+    }
     return false;
   },
 
@@ -179,14 +179,14 @@ var EventSource = Class.extend({
 
     // if there's no path to traverse
     if (typeof path === 'undefined' || utils.isArray(path) && path.length == 0) {
-      return this; 
+      return this;
     }
 
     // prepare path to array
     if (typeof path === 'string') {
       path = path.split('.');
     }
-    
+
     // check if path is an array
     if (!utils.isArray(path)) {
       utils.error('Path is wrong type. Path should be a string or array but is ' + typeof path + '.');
@@ -199,6 +199,19 @@ var EventSource = Class.extend({
       utils.warn('Can\'t find child "' + currentTarget + '" of the model ' + this._name + '.');
     else
       return this.getModelObject(currentTarget).traversePath(path);
+  },
+
+  createEventFromType: function(evtType) {
+    if ((evtType instanceof DefaultEvent)) {
+      return evtType
+    }
+
+    var eventClass = DefaultEvent.get(evtType, true); // silent
+    if (eventClass) {
+      return new eventClass(this);
+    }
+
+    return new DefaultEvent(this, evtType);
   },
 
   /**
@@ -219,17 +232,7 @@ var EventSource = Class.extend({
     }
 
     // create an event-object if necessary
-    var evt;
-    if ((evtType instanceof DefaultEvent)) {
-      evt = evtType;
-    } else {
-      var eventClass = DefaultEvent.get(evtType, true); // silent
-      if(eventClass) {
-        evt = new eventClass(this);
-      } else {
-        evt = new DefaultEvent(this, evtType);
-      }
-    } 
+    var evt = this.createEventFromType(evtType);
 
     // if this eventType has no events registered
     if(!this._events.hasOwnProperty(evt.type)) {
@@ -268,7 +271,7 @@ var EventSource = Class.extend({
       } else {
         execute();
       }
-    })    
+    })
   },
 
   /**

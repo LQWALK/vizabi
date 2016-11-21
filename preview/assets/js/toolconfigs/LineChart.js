@@ -1,22 +1,18 @@
-
 var VIZABI_MODEL = {
   "state": {
     "time": {
-      "start": "1800",
-      "end": "2015",
+      "startOrigin": "1800",
+      "endOrigin": "2015",
       "value": "2015",
     },
     "entities": {
       "dim": "geo",
       "show": {
-        country: { "$in": ["usa", "swe", "chn"] }
+        "country": { "$in": ["usa", "swe", "chn"] }
       }
     },
-    "entities_minimap": {
-      "dim": "geo",
-      "show": {
-        "is--world_4region": true
-      }
+    "entities_colorlegend": {
+      "dim": "geo"
     },
     "marker": {
       "space": ["entities", "time"],
@@ -31,7 +27,7 @@ var VIZABI_MODEL = {
         "domainMin": 300,
         "domainMax": 128000,
         "allow": {
-          "scales": ["linear", "log", "time"]
+          "scales": ["linear", "log"]
         }
 
       },
@@ -47,9 +43,9 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "world_4region",
         "allow": {
-          "scales": ["ordinal"],
-          "names": ["!name"]
-        }
+          "scales": ["ordinal"]
+        },
+        "colorlegend": "marker_colorlegend"
       }
     },
     "entities_allpossible": {
@@ -68,18 +64,22 @@ var VIZABI_MODEL = {
         "which": "name"
       }
     },
-    "marker_minimap":{
-      "space": ["entities_minimap"],
-        "type": "geometry",
-        "shape": "svg",
-        "label": {
-          "use": "property",
-          "which": "name"
-        },
-        "geoshape": {
-          "use": "property",
-          "which": "shape_lores_svg"
-        }
+    "marker_colorlegend": {
+      "space": ["entities_colorlegend"],
+      "type": "geometry",
+      "shape": "svg",
+      "label": {
+        "use": "property",
+        "which": "name"
+      },
+      "hook_rank": {
+        "use": "property",
+        "which": "rank"
+      },
+      "hook_geoshape": {
+        "use": "property",
+        "which": "shape_lores_svg"
+      }
     },
     "marker_tags": {
       "space": ["entities_tags"],
@@ -87,10 +87,10 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "name"
       },
-      "parent": {
+      "hook_parent": {
         "use": "property",
         "which": "parent"
       }
     }
   }
-}
+};

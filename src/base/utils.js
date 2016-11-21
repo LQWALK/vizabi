@@ -1,4 +1,4 @@
-import interpolator from '../../node_modules/vizabi-interpolators/interpolators';
+import interpolator from 'vizabi-interpolators/interpolators';
 
 /*
  * Check if value A is in +- proximity of value B
@@ -428,8 +428,10 @@ export var deepExtend = function(/*obj_1, [obj_2], [obj_N]*/) {
       /**
        * if new value isn't object then just overwrite by new value
        * instead of extending.
+       * 2016-11-07 / Jasper: Added specific check for val instanceof Model for merging defaults & values of ComponentModels
+       * 2016-11-07 / Jasper: Hack because importing Model doesn't work: instead check for val._data
        */
-      } else if (typeof val !== 'object' || val === null) {
+      } else if (typeof val !== 'object' || val === null || val._data) {
         target[key] = val;
         return;
 
@@ -796,7 +798,7 @@ export var mapRows = function(original, formatters) {
       return res;
     }
   }
-   
+
   // default formatter turns empty strings in null and converts numeric values into number
   //TODO: default formatter is moved to utils. need to return it to hook prototype class, but retest #1212 #1230 #1253
   var defaultFormatter = function (val) {
@@ -804,18 +806,18 @@ export var mapRows = function(original, formatters) {
       if(val === ""){
         newVal = null;
       } else {
-        // check for numberic
+        // check for numeric
         var numericVal = parseFloat(val);
         if (!isNaN(numericVal) && isFinite(val)) {
           newVal = numericVal;
         }
-      }  
+      }
       return newVal;
   }
-  
+
   original = original.map(function(row) {
     var columns = Object.keys(row);
-      
+
     for(var i = 0; i < columns.length; i++) {
       var col = columns[i];
       row[col] = mapRow(row[col], formatters[col] || defaultFormatter);
@@ -863,7 +865,7 @@ export var warn = function(message) {
     .map(function(m){return m instanceof Object? JSON.stringify(m, null, 4) : m })
     .join(' ');
   if(console && typeof console.warn === 'function') {
-    
+
     console.warn(message);
   }
   // "return true" is needed to find out if a parent function is exited with warning
@@ -993,9 +995,9 @@ export var throttle = function(func, ms) {
     savedThis,
     nextTime,
     wrapper = function() {
-      
+
       if(nextTime > Date.now()) {
-        throttled = true;        
+        throttled = true;
         savedArgs = arguments;
         savedThis = this;
         return;
@@ -1003,23 +1005,23 @@ export var throttle = function(func, ms) {
 
       nextTime = Date.now() + ms;
       throttled = false;
-      
+
       func.apply(this, arguments);
 
       setTimeout(function() {
-        __recallLast();          
+        __recallLast();
       }, ms);
 
     },
-    
+
     __recallLast = function() {
       if(throttled) {
         throttled = false;
         func.apply(savedThis, savedArgs);
-      }     
+      }
     };
 
-  wrapper.recallLast = __recallLast; 
+  wrapper.recallLast = __recallLast;
 
   return wrapper;
 };
@@ -1040,11 +1042,11 @@ export var keys = function(arg) {
  * @return {Array}
  */
 export var values = function(obj) {
-  var arr;
+  var arr = [];
   var keys = Object.keys(obj);
   var size = keys.length;
   for(var i = 0; i < size; i += 1) {
-    (arr = arr || []).push(obj[keys[i]]);
+    arr.push(obj[keys[i]]);
   }
   return arr;
 };
@@ -1139,70 +1141,6 @@ export var diffObject = function(obj2, obj1) {
 };
 
 /*
- * Returns the resulting object without _defs_ leveling
- * @param {Object} obj
- * @returns {Object}
- */
-export var flattenDefaults = function(obj) {
-  var flattened = {};
-  forEach(obj, function(val, key) {
-    if(isPlainObject(val) && val._defs_) {
-      flattened[key] = val._defs_;
-    } else if(isPlainObject(val)) {
-      flattened[key] = flattenDefaults(val);
-    } else {
-      flattened[key] = val;
-    }
-  });
-  return flattened;
-};
-
-/*
- * Returns the resulting object without date objects for time
- * @param {Object} obj
- * @returns {Object}
- */
-export var flattenDates = function(obj, timeFormat) {
-  var flattened = {};
-  forEach(obj, function(val, key) {
-    //todo: hack to flatten time unit objects to strings
-    if (key === 'marker') {
-      ["axis_x", "axis_y", "size_label"].map(function(name) {
-        var hook = val[name];
-        if(typeof hook === 'object') {
-          if(isDate(hook.domainMin)) hook.domainMin = timeFormat(hook.domainMin);
-          if(isDate(hook.domainMax)) hook.domainMax = timeFormat(hook.domainMax);
-          if(isDate(hook.zoomedMin)) hook.zoomedMin = timeFormat(hook.zoomedMin);
-          if(isDate(hook.zoomedMax)) hook.zoomedMax = timeFormat(hook.zoomedMax);
-        }
-      });
-    } else if(key === 'time') {
-      if(typeof val.value === 'object' && val.value != null) {
-        val.value = timeFormat(val.value);
-      }
-      if(typeof val.start === 'object' && val.start != null) {
-        val.start = timeFormat(val.start);
-      }
-      if(typeof val.end === 'object' && val.end != null) {
-        val.end = timeFormat(val.end);
-      }
-      if(typeof val.startSelected === 'object' && val.startSelected != null) {
-        val.startSelected = timeFormat(val.startSelected);
-      }
-      if(typeof val.endSelected === 'object' && val.endSelected != null) {
-        val.endSelected = timeFormat(val.endSelected);
-      }
-    }
-    if(isPlainObject(val)) {
-      flattened[key] = flattenDates(val, timeFormat);
-    } else {
-      flattened[key] = val;
-    }
-  });
-  return flattened;
-}
-
-/*
  * Defers a function
  * @param {Function} func
  */
@@ -1263,11 +1201,11 @@ export var nestArrayToObj = function(arr) {
 
 
 export var interpolateVector = function(){
-    
+
 }
 
 /**
- * interpolates the specific value 
+ * interpolates the specific value
  * @param {Array} items -- an array of items, sorted by "dimTime", filtered so that no item[which] is null
  * @param {String} use -- a use of hook that wants to interpolate. can be "indicator" or "property" or "constant"
  * @param {String} which -- a hook pointer to indicator or property, e.g. "lex"
@@ -1280,38 +1218,38 @@ export var interpolateVector = function(){
  */
 export var interpolatePoint = function(items, use, which, next, dimTime, time, method, extrapolate){
 
-    
+
   if(!items || items.length === 0) {
     warn('interpolatePoint failed because incoming array is empty. It was ' + which);
     return null;
   }
   // return constant for the use of "constant"
   if(use === 'constant') return which;
-    
+
   // zero-order interpolation for the use of properties
   if(use === 'property') return items[0][which];
 
   // the rest is for the continuous measurements
-    
+
   if (extrapolate){
     // check if the desired value is out of range. 0-order extrapolation
-    if(time - items[0][dimTime] <= 0) return items[0][which];    
+    if(time - items[0][dimTime] <= 0) return items[0][which];
     if(time - items[items.length - 1][dimTime] >= 0) return items[items.length - 1][which];
   } else {
     // no extrapolation according to Ola's request
     if(time < items[0][dimTime] || time > items[items.length - 1][dimTime]) return null;
   }
-    
+
   if(!next && next !== 0) next = d3.bisectLeft(items.map(function(m){return m[dimTime]}), time);
-    
+
   if(next === 0) return items[0][which];
-        
+
   //return null if data is missing
   if(items[next]===undefined || items[next][which] === null || items[next - 1][which] === null || items[next][which] === "") {
     warn('interpolatePoint failed because next/previous points are bad in ' + which);
     return null;
   }
-    
+
 
   //do the math to calculate a value between the two points
   var result = interpolator[method||"linear"](
@@ -1328,7 +1266,7 @@ export var interpolatePoint = function(items, use, which, next, dimTime, time, m
       warn('interpolatePoint failed because result is NaN. It was ' + which);
       result = null;
   }
-    
+
   return result;
 
 }
@@ -1444,6 +1382,10 @@ export var debounce = function(func, wait, immediate) {
 };
 
 export var isTouchDevice = function() {
+  //'ontouchstart' is not reliable in Google Chrome #2116, but Chrome has this firesTouchEvents flag
+  if(((d3.event||{}).sourceCapabilities||{}).firesTouchEvents != null ) {
+    return d3.event.sourceCapabilities.firesTouchEvents;
+  }
   return !!(('ontouchstart' in window) || window.DocumentTouch && document instanceof DocumentTouch);
 };
 
@@ -1516,7 +1458,7 @@ export function firstBy(){
     function ignoreCase(v){return typeof(v)==="string" ? v.toLowerCase() : v;}
 
     function makeCompareFunction(f, opt){
-     opt = typeof(opt)==="number" ? {direction:opt} : opt||{}; 
+     opt = typeof(opt)==="number" ? {direction:opt} : opt||{};
      if(typeof(f)!="function"){
         var prop = f;
         // make unary function
@@ -1524,7 +1466,7 @@ export function firstBy(){
       }
       if(f.length === 1) {
         // f is a unary function mapping a single item to its sort score
-        var uf = f; 
+        var uf = f;
         var preprocess = opt.ignoreCase?ignoreCase:identity;
         f = function(v1,v2) {return preprocess(uf(v1)) < preprocess(uf(v2)) ? -1 : preprocess(uf(v1)) > preprocess(uf(v2)) ? 1 : 0;}
       }
@@ -1540,7 +1482,7 @@ export function firstBy(){
         var y = makeCompareFunction(func, opt);
         var f = x ? function(a, b) {
                         return x(a,b) || y(a,b);
-                    } 
+                    }
                   : y;
         f.thenBy = tb;
         return f;

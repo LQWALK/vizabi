@@ -1,11 +1,7 @@
-import * as utils from 'utils';
-import Promise from 'promise';
-import Data from 'data';
-import EventSource, {DefaultEvent, ChangeEvent} from 'events';
-import Intervals from 'intervals';
-import * as models from 'models/_index';
-
-var _DATAMANAGER = new Data();
+import * as utils from 'base/utils';
+import Promise from 'base/promise';
+import EventSource, {DefaultEvent, ChangeEvent} from 'base/events';
+import Intervals from 'base/intervals';
 
 var ModelLeaf = EventSource.extend({
 
@@ -13,7 +9,7 @@ var ModelLeaf = EventSource.extend({
   _parent: null,
   _persistent: true,
 
-  init: function(name, value, parent, binds) {
+  init: function(name, value, parent, binds, persistent) {
 
     // getter and setter for the value
     Object.defineProperty(this, 'value', {
@@ -28,7 +24,7 @@ var ModelLeaf = EventSource.extend({
 
     this._name = name;
     this._parent = parent;
-    this.value = value;
+    this.set(value, false, persistent);
     this.on(binds); // after super so there is an .events object
   },
 
@@ -38,11 +34,10 @@ var ModelLeaf = EventSource.extend({
   },
 
   set: function(val, force, persistent) {
-    if (force || (this._val !== val && JSON.stringify(this._val) !== JSON.stringify(val))) {
-
+    if (this.isSetAllowed(val, force)) {
       // persistent defaults to true
       persistent = (typeof persistent !== 'undefined') ? persistent : true;
- 
+
       // set leaf properties
       if (persistent) this._persistentVal = val; // set persistent value if change is persistent.
       this._val = val;
@@ -50,7 +45,14 @@ var ModelLeaf = EventSource.extend({
 
       // trigger change event
       this.trigger(new ChangeEvent(this), this._name);
+
+      return true;
     }
+    return false;
+  },
+
+  isSetAllowed: function(val, force) {
+    return force || (this._val !== val && JSON.stringify(this._val) !== JSON.stringify(val));
   },
 
   // duplicate from Model. Should be in a shared parent class.
@@ -66,7 +68,12 @@ var ModelLeaf = EventSource.extend({
 
 var Model = EventSource.extend({
 
-
+  _defaults: {},
+  
+  /**
+   * A leaf model which has an object as value.
+   * Needed when parsing plain JS objects. Enables distinction between models and leafs with object values.
+   **/ 
   objectLeafs: [],
 
   /**
@@ -90,11 +97,7 @@ var Model = EventSource.extend({
     this._loading = [];
     //array of processes that are loading
     this._intervals = getIntervals(this);
-    //holds the list of dependencies for virtual models
-    this._deps = {
-      parent: [],
-      children: []
-    };
+
     //will the model be hooked to data?
     this._space = {};
     this._spaceDims = {};
@@ -104,10 +107,11 @@ var Model = EventSource.extend({
     //stores limit values
     this._super();
 
-    //initial values
-    if(values) {
-      this.set(values);
-    }
+    // initial values
+    // add defaults to initialValues
+    var initialValues = utils.deepExtend({}, this._defaults, values)
+    this.set(initialValues);
+
     // bind initial events
     // bind after setting, so no events are fired by setting initial values
     if(bind) {
@@ -129,7 +133,7 @@ var Model = EventSource.extend({
     if(!attr) {
       return this._data;
     }
-    if (isModel(this._data[attr]))
+    if (Model.isModel(this._data[attr]))
       return this._data[attr];
     else
       return this._data[attr].value; // return leaf value
@@ -147,7 +151,7 @@ var Model = EventSource.extend({
     var setting = this._setting;
     var attrs;
     var freezeCall = false; // boolean, indicates if this .set()-call froze the modelTree
-    
+
     //expect object as default
     if(!utils.isPlainObject(attr)) {
       (attrs = {})[attr] = val;
@@ -168,44 +172,49 @@ var Model = EventSource.extend({
     }
 
     // init/set all given values
-    var newSubmodels = false;
-    for(var a in attrs) {
-      val = attrs[a];
+    var changes = [];
+    for(var attribute in attrs) {
+      val = attrs[attribute];
 
-      var bothModel = utils.isPlainObject(val) && this._data[a] instanceof Model;
-      var bothModelLeaf = (!utils.isPlainObject(val) || this.isObjectLeaf(a)) && this._data[a] instanceof ModelLeaf;
-      
-      if (this._data[a] && (bothModel || bothModelLeaf)) {
+      var bothModel = utils.isPlainObject(val) && this._data[attribute] instanceof Model;
+      var bothModelLeaf = (!utils.isPlainObject(val) || this.isObjectLeaf(attribute)) && this._data[attribute] instanceof ModelLeaf;
+
+      if (this._data[attribute] && (bothModel || bothModelLeaf)) {
         // data type does not change (model or leaf and can be set through set-function)
-        this._data[a].set(val, force, persistent);
+        var setSuccess = this._data[attribute].set(val, force, persistent);
+        if (bothModelLeaf && setSuccess) {
+          changes.push(attribute);
+        }
       } else {
         // data type has changed or is new, so initializing the model/leaf
-        this._data[a] = initSubmodel(a, val, this);
-        newSubmodels = true;
+        this._data[attribute] = initSubmodel(attribute, val, this, persistent);
+        bindSetterGetter(this, attribute);
       }
     }
 
-    // only if there's new submodels, we have to set new getters/setters
-    if (newSubmodels)
-      bindSettersGetters(this);
-
-    if(this.validate && !setting) {
-      this.validate();
+    if (!setting) {
+      this.checkDataChanges(changes);
+      if(this.validate) {
+        this.validate();
+      }
     }
 
     if(!setting || force) {
       this._setting = false;
-      if(!this.isHook()) {
+      if(!this.isHook() && !this.isLoading()) {
         this.setReady();
       }
     }
-    
+
     // if this set()-call was the one freezing the tree, now the tree can be unfrozen (i.e. all setting is done)
     if (freezeCall) {
       this.setTreeFreezer(false);
     }
-
   },
+
+  // standard model doesn't do anything with data
+  // overloaded by hook/entities
+  checkDataChanges: function() { },
 
   setTreeFreezer: function(freezerStatus) {
     // first traverse down
@@ -235,21 +244,21 @@ var Model = EventSource.extend({
   /**
    * Gets all submodels of the current model
    * @param {Object} object [object=false] Should it return an object?
-   * @param {Function} fn Validation function
+   * @param {Function} validationFunction Validation function
    * @returns {Array} submodels
    */
-  getSubmodels: function(object, fn) {
+  getSubmodels: function(object, validationFunction) {
     var submodels = (object) ? {} : [];
-    var fn = fn || function() {
+    var validationFunction = validationFunction || function() {
       return true;
     };
     var _this = this;
-    utils.forEach(this._data, function(s, name) {
-      if(s && typeof s._id !== 'undefined' && isModel(s) && fn(s)) {
+    utils.forEach(this._data, function(subModel, name) {
+      if(subModel && typeof subModel._id !== 'undefined' && Model.isModel(subModel) && validationFunction(subModel)) {
         if(object) {
-          submodels[name] = s;
+          submodels[name] = subModel;
         } else {
-          submodels.push(s);
+          submodels.push(subModel);
         }
       }
     });
@@ -262,19 +271,30 @@ var Model = EventSource.extend({
    */
   getPlainObject: function(persistent) {
     var obj = {};
+    var _this = this;
     utils.forEach(this._data, function(dataItem, i) {
       // if it's a submodel
       if(dataItem instanceof Model) {
         obj[i] = dataItem.getPlainObject(persistent);
-      } 
+      }
       // if it's a modelLeaf
       else {
-        obj[i] = dataItem.get(persistent);
+        //if asked for persistent then add value to result only if modelLeaf state is
+        //persistent
+        if(!persistent || dataItem.persistent) {
+          var leafValue = dataItem.get(persistent);
+          if (utils.isDate(leafValue)) 
+            leafValue = _this.formatDate(leafValue);
+          obj[i] = leafValue;
+        }
       }
     });
     return obj;
   },
 
+  formatDate: function(dateObject) {
+    return dateObject.toString();
+  },
 
   /**
    * Gets the requested object, including the leaf-object, not the value
@@ -314,37 +334,34 @@ var Model = EventSource.extend({
    * ==========================
    */
 
+   // normal model is never loading
+  _isLoading: function() {
+    return false;
+  },
+
   /**
    * checks whether this model is loading anything
    * @param {String} optional process id (to check only one)
    * @returns {Boolean} is it loading?
    */
-  isLoading: function(p_id) {
-    if(this.isHook() && (!this._loadedOnce || this._loadCall)) {
+  isLoading: function() {
+    if(this._isLoading())
       return true;
-    }
-    if(p_id) {
-      return this._loading.indexOf(p_id) !== -1;
-    } //if loading something
-    else if(this._loading.length > 0) {
+
+    //if loading something
+    if(this._loading.length > 0)
       return true;
-    } //if not loading anything, check submodels
-    else {
-      var submodels = this.getSubmodels();
-      var i;
-      for(i = 0; i < submodels.length; i += 1) {
-        if(submodels[i].isLoading()) {
-          return true;
-        }
+
+    //if not loading anything, check submodels
+    var submodels = this.getSubmodels();
+    var i;
+    for(i = 0; i < submodels.length; i += 1) {
+      if(submodels[i].isLoading()) {
+        return true;
       }
-      for(i = 0; i < this._deps.children.length; i += 1) {
-        var d = this._deps.children[i];
-        if(d.isLoading() || !d._ready) {
-          return true;
-        }
-      }
-      return false;
     }
+
+    return false;
   },
 
   /**
@@ -393,6 +410,22 @@ var Model = EventSource.extend({
     }
   },
 
+  startPreload: function() {
+    
+    var promises = [];
+    promises.push(this.preloadData());
+
+    utils.forEach(this.getSubmodels(), 
+      subModel => promises.push(subModel.startPreload())
+    ); 
+
+    return Promise.all(promises);
+  },
+
+  preloadData: function() {
+    return Promise.resolve();
+  },
+
   /**
    * loads data (if hook)
    * Hooks loads data, models ask children to load data
@@ -402,90 +435,62 @@ var Model = EventSource.extend({
    * @param {Object} options (includes splashScreen)
    * @returns defer
    */
-  load: function(opts) {
-
-    opts = opts || {};
-    var splashScreen = opts.splashScreen || false;
+  startLoading: function(opts) {
 
     var _this = this;
-    var data_hook = this._dataModel;
-    var language_hook = this._languageModel;
-    var query = this.getQuery(splashScreen);
-    var promiseLoad = new Promise();
+
+    return new Promise(function(resolve, reject) {
+
+      var promises = [];
+
+      promises.push(_this.loadData(opts));
+      promises.push(_this.loadSubmodels(opts));
+
+      var everythingLoaded = Promise.all(promises);
+      everythingLoaded.then(
+        function() { resolve(); _this.onSuccessfullLoad(); },
+        function() { reject(); _this.triggerLoadError(); }
+      );
+
+    });
+
+  },
+
+  loadData: function(opts) {
+    if (this.isHook()) utils.warn('Hook ' + this._name + ' is not loading because it\'s not extending Hook prototype.')
+    return Promise.resolve();
+  },
+
+  loadSubmodels: function(options) {
     var promises = [];
-    //useful to check if in the middle of a load call
-    this._loadCall = true;
-
-    //load hook
-    //if its not a hook, the promise will not be created
-    if(this.isHook() && data_hook && query) {
-      //hook changes, regardless of actual data loading
-      this.trigger('hook_change');
-      //get reader info
-      var reader = data_hook.getPlainObject();
-      reader.parsers = this._getAllParsers();
-
-      var lang = language_hook ? language_hook.id : 'en';
-      var promise = new Promise();
-      var evts = {
-        'load_start': function() {
-          _this.setLoading('_hook_data');
-          EventSource.freezeAll([
-            'load_start',
-            'resize',
-            'dom_ready'
-          ]);
-        }
-      };
-
-      utils.defer(function() { //defer require to fire "hook_change" event
-        utils.timeStamp('Vizabi Model: Loading Data: ' + _this._id);
-        _DATAMANAGER.load(query, lang, reader, evts).then(function(dataId) {
-          _this._dataId = dataId;
-          _this.scale = null;
-          utils.timeStamp('Vizabi Model: Data loaded: ' + _this._id);
-          _this.afterLoad();
-          promise.resolve();
-        }, function(err) {
-          utils.warn('Problem with query: ', query);
-          promise.reject(err);
-        });
-        
-      });
-      promises.push(promise);
-    }
-
-    //load submodels as well
-    utils.forEach(this.getSubmodels(true), function(sm, name) {
-      promises.push(sm.load(opts));
+    var subModels = this.getSubmodels();
+    utils.forEach(subModels, function(subModel) {
+      promises.push(subModel.startLoading(options));
     });
+    return promises.length > 0 ? Promise.all(promises) : Promise.resolve();
+  },
 
-    //when all promises/loading have been done successfully
-    //we will consider this done
-    var wait = promises.length ? Promise.all(promises) : new Promise.resolve();
-    wait.then(function() {
+  onSuccessfullLoad: function() {
 
-      //only validate if not showing splash screen to avoid fixing the year
-      if(_this.validate) {
-        _this.validate();
-      }
-      utils.timeStamp('Vizabi Model: Model loaded: ' + _this._id);
-      //end this load call
-      _this._loadedOnce = true;
+    var _this = this;
 
-      //we need to defer to make sure all other submodels
-      //have a chance to call loading for the second time
-      _this._loadCall = false;
-      promiseLoad.resolve();
-      utils.defer(function() {
-        _this.setReady();
-      });
-    }, function() {
-      _this.trigger('load_error');
-      promiseLoad.reject();
-    });
+    this.validate();
+    utils.timeStamp('Vizabi Model: Model loaded: ' + this.name + '(' + this._id + ')');
+    //end this load call
+    this._loadedOnce = true;
 
-    return promiseLoad;
+    //we need to defer to make sure all other submodels
+    //have a chance to call loading for the second time
+    this._loadCall = false;
+    this.setTreeFreezer(false);
+
+    utils.defer(
+      function() { _this.setReady(); }
+    );
+  },
+
+  triggerLoadError: function() {
+    this.trigger('load_error');
   },
 
   /**
@@ -498,94 +503,6 @@ var Model = EventSource.extend({
     });
   },
 
-  /**
-   * executes after data has actually been loaded
-   */
-  afterLoad: function() {
-    EventSource.unfreezeAll();
-    this.setLoadingDone('_hook_data');
-  },
-
-  /**
-   * removes all external dependency references
-   */
-  resetDeps: function() {
-    this._deps.children = [];
-  },
-
-  /**
-   * add external dependency ref to this model
-   */
-  addDep: function(child) {
-    this._deps.children.push(child);
-    child._deps.parent.push(this);
-  },
-
-  /**
-   * gets query that this model/hook needs to get data
-   * @returns {Array} query
-   */
-  getQuery: function(splashScreen) {
-    var _this = this;
-
-    var dimensions, filters, select, from, order_by, q, animatable;
-
-    //if it's not a hook, no query is necessary
-    if(!this.isHook()) return true;
-    //error if there's nothing to hook to
-    if(Object.keys(this._space).length < 1) {
-      utils.error('Error:', this._id, 'can\'t find the space');
-      return true;
-    }
-
-    var prop = (this.use === "property") || (this.use === "constant");
-    var exceptions = (prop) ? { exceptType: 'time' } : {};
-
-    // select
-    // we remove this.which from values if it duplicates a dimension
-    var dimensions = this._getAllDimensions(exceptions);
-    select = {
-      key: dimensions,
-      value: dimensions.indexOf(this.which)!=-1 || this.use === "constant" ? [] : [this.which]
-    }
-    
-    // animatable
-    animatable = this._getFirstDimension({type: "time"});
-    
-    // from
-    from = prop ? "entities" : "datapoints";
-
-    // where 
-    filters = this._getAllFilters(exceptions, splashScreen);
-
-    // make root $and explicit
-    var explicitAndFilters =  {};
-    if (Object.keys(filters).length > 0) {
-      explicitAndFilters['$and'] = [];
-      for (var filterKey in filters) {
-        var filter = {};
-        filter[filterKey] = filters[filterKey];
-        explicitAndFilters['$and'].push(filter);
-      }
-    }
-
-    // join
-    var join = this._getAllJoins(exceptions, splashScreen);
-
-    // order by
-    order_by = (!prop) ? [this._space.time.dim] : [];
-
-    //return query
-    return {
-      'from': from,
-      'animatable': animatable,
-      'select': select,
-      'where': explicitAndFilters,
-      'join': join,
-      'order_by': order_by // should be _space.animatable, but that's time for now
-    };
-  },
-
   /* ===============================
    * Hooking model to external data
    * ===============================
@@ -596,68 +513,6 @@ var Model = EventSource.extend({
    */
   isHook: function() {
     return this.use ? true : false;
-  },
-  /**
-   * Hooks all hookable submodels to data
-   */
-  setHooks: function() {
-    if(this.isHook()) {
-      //what should this hook to?
-      this.hookModel();
-    } else {
-      //hook submodels
-      var submodels = this.getSubmodels();
-      utils.forEach(submodels, function(s) {
-        s.setHooks();
-      });
-    }
-  },
-
-  /**
-   * Hooks this model to data, entities and time
-   * @param {Object} h Object containing the hooks
-   */
-  hookModel: function() {
-    var _this = this;
-    var spaceRefs = getSpace(this);
-    // assuming all models will need data and language support
-    this._dataModel = getClosestModel(this, 'data');
-    this._languageModel = getClosestModel(this, 'language');
-    //check what we want to hook this model to
-    utils.forEach(spaceRefs, function(name) {
-      //hook with the closest prefix to this model
-      _this._space[name] = getClosestModel(_this, name);
-      //if hooks change, this should load again
-      //TODO: remove hardcoded 'show"
-      if(_this._space[name].show) {
-        _this._space[name].on('change:show', function(evt) {
-          //hack for right size of bubbles
-          if(_this._type === 'size' && _this.which === _this.which_1) {
-            _this.which_1 = '';
-          };
-          //defer is necessary because other events might be queued.
-          //load right after such events
-          utils.defer(function() {
-            _this.load().then(function() {
-
-            }, function(err) {
-              utils.warn(err);
-            });
-          });
-        });
-      }
-    });
-    //this is a hook, therefore it needs to reload when data changes
-    this.on('change:which', function(evt) {
-      //defer is necessary because other events might be queued.
-      //load right after such events
-      _this.load();
-    });
-    //this is a hook, therefore it needs to reload when data changes
-    this.on('hook_change', function() {
-      _this._spaceDims = {};
-      _this.setReady(false);
-    });
   },
 
   /**
@@ -749,180 +604,17 @@ var Model = EventSource.extend({
     return null;
   },
 
-  getDataManager: function(){
-    return _DATAMANAGER;
-  },
-
   /**
-   * Gets limits
-   * @param {String} attr parameter
-   * @returns {Object} limits (min and max)
+   * @return {Object} defaults of this model, and when available overwritten by submodel defaults
    */
-  getLimits: function(attr) {
-    return _DATAMANAGER.get(this._dataId, 'limits', attr);
-  },
-
-  /**
-   * gets all hook dimensions
-   * @param {Object} opts options with exceptType or onlyType
-   * @returns {Array} all unique dimensions
-   */
-  _getAllDimensions: function(opts) {
-
-    var optsStr = JSON.stringify(opts);
-    if(optsStr in this._spaceDims) {
-      return this._spaceDims[optsStr];
-    }
-
-    opts = opts || {};
-    var dims = [];
-    var dim;
-
-    var models = this._space;
-    //in case it's a parent of hooks
-    if(!this.isHook() && this.space) {
-      models = [];
-      var _this = this;
-      utils.forEach(this.space, function(name) {
-        models.push(getClosestModel(_this, name));
-      });
-    }
-
-    utils.forEach(models, function(m) {
-      if(opts.exceptType && m.getType() === opts.exceptType) {
-        return true;
-      }
-      if(opts.onlyType && m.getType() !== opts.onlyType) {
-        return true;
-      }
-      if(dim = m.getDimension()) {
-        dims.push(dim);
-      }
-    });
-
-    this._spaceDims[optsStr] = dims;
-
-    return dims;
-  },
-
-  /**
-   * gets first dimension that matches type
-   * @param {Object} options
-   * @returns {Array} all unique dimensions
-   */
-  _getFirstDimension: function(opts) {
-    opts = opts || {};
-
-    var models = this._space;
-    //in case it's a parent of hooks
-    if(!this.isHook() && this.space) {
-      models = [];
-      var _this = this;
-      utils.forEach(this.space, function(name) {
-        models.push(getClosestModel(_this, name));
-      });
-    }
-
-    var dim = false;
-    utils.forEach(models, function(m) {
-      if(opts.exceptType && m.getType() !== opts.exceptType) {
-        dim = m.getDimension();
-        return false;
-      } else if(opts.type && m.getType() === opts.type) {
-        dim = m.getDimension();
-        return false;
-      } else if(!opts.exceptType && !opts.type) {
-        dim = m.getDimension();
-        return false;
-      }
-    });
-    return dim;
-  },
-
-  /**
-   * gets all hook filters
-   * @param {Boolean} splashScreen get filters for first screen only
-   * @returns {Object} filters
-   */
-  _getAllFilters: function(opts, splashScreen) {
-    opts = opts || {};
-    var filters = {};
-    var _this = this;
-    utils.forEach(this._space, function(h) {
-      if(opts.exceptType && h.getType() === opts.exceptType) {
-        return true;
-      }
-      if(opts.onlyType && h.getType() !== opts.onlyType) {
-        return true;
-      }
-      // if query's dimensions are the same as the hook's, no join
-      if (utils.arrayEquals(_this._getAllDimensions(opts), [h.getDimension()])) {
-        filters = utils.extend(filters, h.getFilter(splashScreen));
-      } else {
-        var joinFilter = h.getFilter(splashScreen);
-        if (joinFilter != null && !utils.isEmpty(joinFilter)) {
-          var filter = {};
-          filter[h.getDimension()] = "$"  + h.getDimension();
-          filters = utils.extend(filters, filter);
-        }
-      }
-    });
-    return filters;
-  },
-
-  _getAllJoins: function(opts, splashScreen) {
-    var joins = {};
-    var _this = this;
-    utils.forEach(this._space, function(h) {
-      if(opts.exceptType && h.getType() === opts.exceptType) {
-        return true;
-      }
-      if(opts.onlyType && h.getType() !== opts.onlyType) {
-        return true;
-      }
-      if (utils.arrayEquals(_this._getAllDimensions(opts), [h.getDimension()])) {
-        return true;
-      }
-      var filter = h.getFilter(splashScreen);
-      if (filter != null && !utils.isEmpty(filter)) {
-        joins["$" + h.getDimension()] = {
-          key: h.getDimension(),
-          where: h.getFilter(splashScreen)
-        };
-      }
-    });
-    return joins;
-  },
-
-  /**
-   * gets all hook filters
-   * @returns {Object} filters
-   */
-  _getAllParsers: function() {
-
-    var parsers = {};
-
-    function addParser(model) {
-      // get parsers from model
-      var parser = model.getParser();
-      var column = model.getDimensionOrWhich();
-      if (parser && column) {
-        parsers[column] = parser;
-      }
-    }
-
-    // loop through all models which can have filters
-    utils.forEach(this._space, function(h) {
-      addParser(h);
-    });
-    addParser(this);
-
-    return parsers;
-  },
-
   getDefaults: function() {
-    // if defaults are set, does not care about defaults from children
-    if(this._defaults) return this._defaults;
+    return utils.deepExtend({}, this._defaults, this.getSubmodelDefaults());
+  },
+
+  /**
+   * @return {Object} All defaults coming from submodels
+   */
+  getSubmodelDefaults: function() {
     var d = {};
     utils.forEach(this.getSubmodels(true), function(model, name) {
       d[name] = model.getDefaults();
@@ -930,28 +622,42 @@ var Model = EventSource.extend({
     return d;
   },
 
-  getToolDefaults: function() {
-    var isToolModel = false;
-    var model = this;
-    var path = [];
-    var model_defaults = {};
-    while (!isToolModel) {
-      if (model._type == 'tool' || !model._parent) {
-        isToolModel = true;
-        model_defaults = model.default_model;
-      } else {
-        path.push(model._name);
-        model = model._parent;
-      }
-    }
-    while (path.length > 0) {
-      model_defaults = model_defaults[path.pop()] || {};
-    }
-    return model_defaults;
-  },
-
+  /**
+   * @param  {name} name of the child to check
+   * @return {Boolean} if the child is a leaf with a plain object as value
+   */
   isObjectLeaf: function(name) {
     return (this.objectLeafs.indexOf(name) !== -1)
+  },
+
+  /**
+   * gets closest prefix model moving up the model tree
+   * @param {String} prefix
+   * @returns {Object} submodel
+   */
+  getClosestModel: function(name) {
+    var model = this.findSubmodel(name);
+    if(model) {
+      return model;
+    } else if(this._parent) {
+      return this._parent.getClosestModel(name);
+    }
+    return null;
+  },
+
+  /**
+   * find submodel with name that starts with prefix
+   * @param {String} prefix
+   * @returns {Object} submodel or false if nothing is found
+   */
+  findSubmodel: function(name) {
+    for(var i in this._data) {
+      //found submodel
+      if(i === name && Model.isModel(this._data[i])) {
+        return this._data[i];
+      }
+    }
+    return null;
   }
 
 });
@@ -965,30 +671,26 @@ var Model = EventSource.extend({
  * Checks whether an object is a model or not
  * if includeLeaf is true, a leaf is also seen as a model
  */
-function isModel(model, includeLeaf) {
+Model.isModel = function(model, includeLeaf) {
   return model && (model.hasOwnProperty('_data') || (includeLeaf &&  model.hasOwnProperty('_val')));
 }
 
-/**
- * Binds all attributes in _data to magic setters and getters
- */
-function bindSettersGetters(model) {
-  for(var prop in model._data) {
+
+function bindSetterGetter(model, prop) {
     Object.defineProperty(model, prop, {
-      configurable: true,
-      //allow reconfiguration
-      get: function(p) {
-        return function() {
-          return model.get(p);
-        };
-      }(prop),
-      set: function(p) {
-        return function(value) {
-          return model.set(p, value);
-        };
-      }(prop)
-    });
-  }
+    configurable: true,
+    //allow reconfiguration
+    get: function(p) {
+      return function() {
+        return model.get(p);
+      };
+    }(prop),
+    set: function(p) {
+      return function(value) {
+        return model.set(p, value);
+      };
+    }(prop)
+  });
 }
 
 /**
@@ -996,20 +698,21 @@ function bindSettersGetters(model) {
  * @param {String} attr Name of submodel
  * @param {Object} val Initial values
  * @param {Object} ctx context / parent model
+ * @param {Boolean} persistent true if the change is a persistent change 
  * @returns {Object} model new submodel
  */
-function initSubmodel(attr, val, ctx) {
+function initSubmodel(attr, val, ctx, persistent) {
 
   var submodel;
 
   // if value is a value -> leaf
-  if(!utils.isPlainObject(val) || utils.isArray(val) || ctx.isObjectLeaf(attr)) {  
+  if(!utils.isPlainObject(val) || utils.isArray(val) || ctx.isObjectLeaf(attr)) {
 
     var binds = {
       //the submodel has changed (multiple times)
       'change': onChange
     }
-    submodel = new ModelLeaf(attr, val, ctx, binds);
+    submodel = new ModelLeaf(attr, val, ctx, binds, persistent);
   }
 
   // if value is an object -> model
@@ -1030,17 +733,26 @@ function initSubmodel(attr, val, ctx) {
 
     // if the value is an already instantiated submodel (Model or ModelLeaf)
     // this is the case for example when a new componentmodel is made (in Component._modelMapping)
-    // it takes the submodels from the toolmodel and creates a new model for the component which refers 
+    // it takes the submodels from the toolmodel and creates a new model for the component which refers
     // to the instantiated submodels (by passing them as model values, and thus they reach here)
-    if (isModel(val, true)) {
+    if (Model.isModel(val, true)) {
       submodel = val;
       submodel.on(binds);
-    } 
+    }
     // if it's just a plain object, create a new model
     else {
       // construct model
       var modelType = attr.split('_')[0];
-      var Modl = Model.get(modelType, true) || models[modelType] || Model;
+
+      let Modl = Model.get(modelType, true);
+      if (!Modl) {
+        try {
+          Modl = require(`../models/${modelType}`);
+        } catch (err) {
+          Modl = Model;
+        }
+      }
+
       submodel = new Modl(attr, val, ctx, binds);
       // model is still frozen but will be unfrozen at end of original .set()
     }
@@ -1052,7 +764,7 @@ function initSubmodel(attr, val, ctx) {
   function onChange(evt, path) {
     if(!ctx._ready) return; //block change propagation if model isnt ready
     path = ctx._name + '.' + path
-    ctx.trigger(evt, path);    
+    ctx.trigger(evt, path);
   }
   function onHookChange(evt, vals) {
     ctx.trigger(evt, vals);
@@ -1086,50 +798,6 @@ function getIntervals(ctx) {
     return getIntervals(ctx._parent);
   } else {
     return new Intervals();
-  }
-}
-
-/**
- * gets closest prefix model moving up the model tree
- * @param {String} prefix
- * @returns {Object} submodel
- */
-function getClosestModel(ctx, name) {
-  var model = findSubmodel(ctx, name);
-  if(model) {
-    return model;
-  } else if(ctx._parent) {
-    return getClosestModel(ctx._parent, name);
-  }
-}
-
-/**
- * find submodel with name that starts with prefix
- * @param {String} prefix
- * @returns {Object} submodel or false if nothing is found
- */
-function findSubmodel(ctx, name) {
-  for(var i in ctx._data) {
-    //found submodel
-    if(i === name && isModel(ctx._data[i])) {
-      return ctx._data[i];
-    }
-  }
-}
-
-/**
- * Learn what this model should hook to
- * @returns {Array} space array
- */
-function getSpace(model) {
-  if(utils.isArray(model.space)) {
-    return model.space;
-  } else if(model._parent) {
-    return getSpace(model._parent);
-  } else {
-    utils.error(
-      'ERROR: space not found.\n You must specify the objects this hook will use under the "space" attribute in the state.\n Example:\n space: ["entities", "time"]'
-    );
   }
 }
 

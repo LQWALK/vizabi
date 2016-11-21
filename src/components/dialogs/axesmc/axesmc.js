@@ -1,8 +1,9 @@
 import * as utils from 'base/utils';
 import Component from 'base/component';
-import Dialog from '../_dialog';
+import Dialog from 'components/dialogs/_dialog';
 
-import { minmaxinputs } from 'components/_index'
+import minmaxinputs from 'components/minmaxinputs/minmaxinputs';
+
 /*
  * Axes dialog
  */
@@ -16,7 +17,7 @@ var Axes = Dialog.extend({
    * @param context component context (parent)
    */
   init: function(config, parent) {
-    this.name = 'axesmc'; 
+    this.name = 'axesmc';
     var _this = this;
 
     this.model_binds = {
@@ -35,7 +36,7 @@ var Axes = Dialog.extend({
       markerID: "axis_x",
       ui: {
         selectDomainMinMax: false,
-        selectZoomedMinMax: true 
+        selectZoomedMinMax: true
       }
     }]
 
@@ -56,6 +57,11 @@ var Axes = Dialog.extend({
     this.xLogStops = this.element.select('.vzb-xaxis-container').selectAll('input')
       .on("change", function() {
         _this.setModel("xLogStops", d3.select(this).node().value);
+      })
+
+    this.probeCheck = this.element.select(".vzb-probe-check")
+      .on("change", function() {
+        _this.setModel("showProbeX", d3.select(this).property('checked'));
       })
 
     this.probeFieldEl = this.element.select(".vzb-probe-field")
@@ -84,6 +90,7 @@ var Axes = Dialog.extend({
     this.xLogStops.property('checked', function() {
       return _this.model.ui.chart.xLogStops.indexOf(+d3.select(this).node().value) !== -1;
     })
+    this.probeCheck.property('checked', this.model.ui.chart.showProbeX);
     this.probeFieldEl.property("value", this.model.ui.chart.probeX);
   },
 
@@ -99,7 +106,7 @@ var Axes = Dialog.extend({
         if(d3.select(this).property('checked')) result.push(+d3.select(this).node().value);
       })
     }
-    if(what == "probeX") {
+    if(what == "probeX" || what == "showProbeX") {
       result = value;
     }
 

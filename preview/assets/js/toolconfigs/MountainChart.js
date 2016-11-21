@@ -1,8 +1,8 @@
 var VIZABI_MODEL = {
   "state": {
     "time": {
-      "start": "1800",
-      "end": "2015",
+      "startOrigin": "1800",
+      "endOrigin": "2015",
       "value": "2015"
     },
     "entities": {
@@ -17,16 +17,10 @@ var VIZABI_MODEL = {
         "is--country": true
       }
     },
-    "entities_minimap": {
+    "entities_colorlegend": {
       "dim": "geo",
       "show": {
         "is--world_4region": true
-      }
-    },
-    "entities_group": {
-      "dim": "geo",
-      "show": {
-          "is--world_4region": true
       }
     },
     "entities_tags": {
@@ -71,9 +65,7 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "world_4region",
         "scaleType": "ordinal",
-        "allow": {
-          "names": ["!name"]
-        }
+        "syncModels": ["marker_colorlegend", "stack", "group"]
       },
       "stack": {
         "use": "constant",
@@ -82,29 +74,25 @@ var VIZABI_MODEL = {
       "group": {
         "use": "property",
         "which": "world_4region",
-        "manualSorting": ["asia", "africa", "americas", "europe"],
         "merge": false
       }
     },
-    "marker_minimap":{
-      "space": ["entities_minimap"],
-        "type": "geometry",
-        "shape": "svg",
-        "label": {
-          "use": "property",
-          "which": "name"
-        },
-        "geoshape": {
-          "use": "property",
-          "which": "shape_lores_svg"
-        }
-    },
-    "marker_group":{
-      "space": ["entities_group"],
-        "label": {
-          "use": "property",
-          "which": "name"
-        }
+    "marker_colorlegend": {
+      "space": ["entities_colorlegend"],
+      "type": "geometry",
+      "shape": "svg",
+      "label": {
+        "use": "property",
+        "which": "name"
+      },
+      "hook_rank": {
+        "use": "property",
+        "which": "rank"
+      },
+      "hook_geoshape": {
+        "use": "property",
+        "which": "shape_lores_svg"
+      }
     },
     "marker_tags": {
       "space": ["entities_tags"],
@@ -112,10 +100,16 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "name"
       },
-      "parent": {
+      "hook_parent": {
         "use": "property",
         "which": "parent"
       }
     }
+  },
+  "ui": {
+    "datawarning": {
+      "doubtDomain": [1800, 1950, 2015],
+      "doubtRange": [1.0, 0.8, 0.6]
+    }
   }
-}
+};

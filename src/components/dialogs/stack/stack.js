@@ -1,11 +1,8 @@
 import * as utils from 'base/utils';
 import Component from 'base/component';
-import Dialog from '../_dialog';
+import Dialog from 'components/dialogs/_dialog';
 
-import {
-    draggablelist
-}
-from 'components/_index'
+import draggablelist from 'components/draggablelist/draggablelist';
 
 
 /*
@@ -23,12 +20,12 @@ var Stack = Dialog.extend({
         this.name = 'stack';
         var _this = this;
 
-        // in dialog, this.model_expects = ["state", "data"];
+        // in dialog, this.model_expects = ["state", "ui", "language"];
 
         this.components = [{
             component: draggablelist,
             placeholder: '.vzb-dialog-draggablelist',
-            model: ["state.marker.group", "state.marker_group", "language", "ui.chart"],
+            model: ["state.marker.group", "state.marker.color", "language", "ui.chart"],
             groupID: "manualSorting",
             isEnabled: "manualSortingEnabled",
             dataArrFn: _this.manualSorting.bind(_this),
@@ -36,14 +33,11 @@ var Stack = Dialog.extend({
         }];
 
         this.model_binds = {
-            'change:state.marker.stack': function(evt) {
-                //console.log("stack change " + evt);
-                _this.updateView();
-            },
-            'change:state.marker.group': function(evt) {
-                //console.log("group change " + evt);
-                _this.updateView();
-            }
+          'change:state.marker.group': function(evt) {
+            //console.log("group change " + evt);
+            if(!_this._ready) return;
+            _this.updateView();
+          }
         };
 
         this._super(config, parent);
@@ -68,16 +62,23 @@ var Stack = Dialog.extend({
 
       this.updateView();
     },
+    
+    ready: function() {
+      this._super();
+      this.updateView();
+    },
 
     updateView: function() {
         var _this = this;
 
         this.howToStackEl
             .property('checked', function() {
-                return d3.select(this).node().value === _this.stack.which;
+                if(d3.select(this).node().value === "none")  return _this.stack.which==="none";
+                if(d3.select(this).node().value === "bycolor") return _this.stack.which===_this.model.state.marker.color.which;
+                if(d3.select(this).node().value === "all") return _this.stack.which==="all";
             });
         
-        _this.ui.chart.manualSortingEnabled = _this.stack.which == "all";
+        _this.model.ui.chart.manualSortingEnabled = _this.stack.which == "all";
         
         this.howToMergeEl
             .property('checked', function() {
@@ -120,15 +121,21 @@ var Stack = Dialog.extend({
             }
         }
         if(what === "stack") {
-
-            obj.stack.which = value;
-
-            //validate use of stack hook
-            if(value !== "all" && value !== "none"){
-                obj.stack.use = "property";
-            } else {
-                obj.stack.use = "constant";
-            }
+          
+          switch (value){
+            case "all":
+              obj.stack.use = "constant";
+              obj.stack.which = "all";
+              break;
+            case "none":
+              obj.stack.use = "constant";
+              obj.stack.which = "none";
+              break;
+            case "bycolor":
+              obj.stack.use = "property";
+              obj.stack.which = this.model.state.marker.color.which;
+              break;
+          }
 
             //validate possible merge values in group and stack hooks
             if(value === "none" && this.group.merge) obj.group.merge = false;

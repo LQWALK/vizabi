@@ -1,8 +1,8 @@
 var VIZABI_MODEL = {
   "state": {
     "time": {
-      "start": "1800",
-      "end": "2012",
+      "startOrigin": "1800",
+      "endOrigin": "2012",
       "value": "2000"
     },
     "entities": {
@@ -11,11 +11,8 @@ var VIZABI_MODEL = {
         "geo": {"$in": ["usa", "swe", "nor"]}
       }
     },
-    "entities_minimap": {
-      "dim": "geo",
-      "show": {
-        "is--world_4region": true
-      }
+    "entities_colorlegend": {
+      "dim": "geo"
     },
     "entities_tags": {
       "dim": "tag"
@@ -29,30 +26,34 @@ var VIZABI_MODEL = {
       "axis_y": {
         "use": "indicator",
         "which": "population_total",
-        "scaleType": "log",
-        
+        "scaleType": "log"        
       },
       "axis_x": {
         "use": "property",
         "which": "name",
         "allow": {
-          "names": ["!geo", "!_default"]
+          "names": ["name"]
         }
       },
       "color": {
         "use": "property",
-        "which": "world_4region"
+        "which": "world_4region",
+        "colorlegend": "marker_colorlegend"
       }
     },
-    "marker_minimap":{
-      "space": ["entities_minimap"],
+    "marker_colorlegend":{
+      "space": ["entities_colorlegend"],
         "type": "geometry",
         "shape": "svg",
         "label": {
           "use": "property",
           "which": "name"
         },
-        "geoshape": {
+        "hook_rank": {
+          "use": "property",
+          "which": "rank"
+        },
+        "hook_geoshape": {
           "use": "property",
           "which": "shape_lores_svg"
         }
@@ -63,7 +64,7 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "name"
       },
-      "parent": {
+      "hook_parent": {
         "use": "property",
         "which": "parent"
       }

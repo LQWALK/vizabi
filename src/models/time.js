@@ -1,5 +1,5 @@
 import * as utils from 'base/utils';
-import Model from 'base/model';
+import DataConnected from 'models/dataconnected';
 
 /*!
  * VIZABI Time Model
@@ -24,7 +24,7 @@ var formats = {
   'quarter': quarterFormat() // %Yq%Q d3 does not support quarters
 };
 
-var TimeModel = Model.extend({
+var TimeModel = DataConnected.extend({
 
   /**
    * Default values for this model
@@ -32,15 +32,17 @@ var TimeModel = Model.extend({
   _defaults: {
     dim: "time",
     value: null,
-    start: null, //mandatory defaults! 
-    end: null, //mandatory defaults!
+    start: null, 
+    end: null,
+    startOrigin: null,
+    endOrigin: null,
     startSelected: null,
     endSelected: null,
     playable: true,
     playing: false,
     loop: false,
     round: 'round',
-    delay: 120, //delay between animation frames
+    delay: 150, //delay between animation frames
     delayThresholdX2: 100, //delay X2 boundary: if less -- then every other frame will be dropped and animation dely will be double the value
     delayThresholdX4: 50, //delay X4 boundary: if less -- then 3/4 frame will be dropped and animation dely will be 4x the value
     unit: "year",
@@ -48,6 +50,8 @@ var TimeModel = Model.extend({
     immediatePlay: false,
     record: false
   },
+
+  dataConnectedChildren: ['startOrigin', 'endOrigin', 'dim'],
 
   /**
    * Initializes the language model.
@@ -58,13 +62,9 @@ var TimeModel = Model.extend({
    */
   init: function(name, values, parent, bind) {
     this._type = "time";
-    //default values for time model
-    var defaults = utils.deepClone(this._defaults);
-    values = utils.extend(defaults, values);
 
     //same constructor
     this._super(name, values, parent, bind);
-    this._initDefaults();
     var _this = this;
     this.timeFormat = formats[this.unit];
     this.dragging = false;
@@ -94,28 +94,13 @@ var TimeModel = Model.extend({
    * Formats value, start and end dates to actual Date objects
    */
   _formatToDates: function() {
-
+    var persistentValues = ["value"];
     var date_attr = ["value", "start", "end", "startSelected", "endSelected"];
     for(var i = 0; i < date_attr.length; i++) {
       var attr = date_attr[i];
       if(!utils.isDate(this[attr])) {
         var date = this.parseToUnit(this[attr], this.unit);
-        this.set(attr, date);
-      }
-    }
-  },
-
-  /*
-   * Convert default values to string
-   * @param {String} values
-   */
-  _initDefaults: function() {
-    this._defaults = utils.extend(this._defaults, this.getToolDefaults());
-    var date_attr = ["value", "start", "end", "startSelected", "endSelected"];
-    for(var i = 0; i < date_attr.length; i++) {
-      var attr = date_attr[i];
-      if(!utils.isString(this._defaults[attr]) && this._defaults[attr] != null) {
-        this._defaults[attr] = this._defaults[attr].toString();
+        this.set(attr, date, null, (persistentValues.indexOf(attr) !== -1));
       }
     }
   },
@@ -125,7 +110,10 @@ var TimeModel = Model.extend({
    * @param {Date} dateObject
    * @param {String} unit
    * @returns {String}
-   */
+   */  
+  formatDate: function(dateObject) {
+    return this.format(dateObject);
+  },
   format: function(dateObject, unit) {
     unit = unit || this.unit;
     if (dateObject == null) return null;
@@ -154,6 +142,10 @@ var TimeModel = Model.extend({
    * Validates the model
    */
   validate: function() {
+    
+    //check if time start and end are not defined but start and end origins are defined
+    if(this.start == null && this.startOrigin) this.set("start", this.startOrigin, null, false);
+    if(this.end == null && this.endOrigin) this.set("end", this.endOrigin, null, false);
 
     //unit has to be one of the available_time_units
     if(!formats[this.unit]) {
@@ -173,7 +165,7 @@ var TimeModel = Model.extend({
 
     //end has to be >= than start
     if(this.end < this.start && this.start != null) {
-      this.end = new Date(this.start);
+      this.set("end", new Date(this.start), null, false);
     }
     
     if(this.value < this.startSelected && this.startSelected != null) {
@@ -185,11 +177,11 @@ var TimeModel = Model.extend({
     }
     if (this.splash === false) {
       if(this.startSelected < this.start && this.start != null) {
-        this.startSelected = new Date(this.start);
+        this.set({startSelected: new Date(this.start)}, null, false /*make change non-persistent for URL and history*/);
       }
 
       if(this.endSelected > this.end && this.end != null) {
-        this.endSelected = new Date(this.end);
+        this.set({endSelected: new Date(this.end)}, null, false /*make change non-persistent for URL and history*/);
       }
     }
   
@@ -260,30 +252,28 @@ var TimeModel = Model.extend({
 
   /**
    * Gets filter for time
-   * @param {Boolean} firstScreen get filter for current year only
+   * @param {Boolean} splash: get filter for current year only
    * @returns {Object} time filter
    */
-  getFilter: function(firstScreen) {
-    var defaultStart = this.parseToUnit(this._defaults.start, this.unit);
-    var defaultEnd = this.parseToUnit(this._defaults.end, this.unit);
+  getFilter: function(splash) {
+    var defaultStart = this.parseToUnit(this.startOrigin, this.unit);
+    var defaultEnd = this.parseToUnit(this.endOrigin, this.unit);
       
     var dim = this.getDimension();
     var filter = null;
 
-    if (firstScreen) {
+    if (splash) {
       if (this.value != null) {
         filter = {};
         filter[dim] = this.timeFormat(this.value);
       }
     } else {
       var gte, lte;
-      var start = defaultStart || this.start;
-      if (start != null) {
-        gte = this.timeFormat(start);
+      if (defaultStart != null) {
+        gte = this.timeFormat(defaultStart);
       }
-      var end = defaultEnd || this.end;
-      if (end != null) {
-        lte = this.timeFormat(end);
+      if (defaultEnd != null) {
+        lte = this.timeFormat(defaultEnd);
       }
       if (gte || lte) {
         filter = {};
@@ -308,6 +298,10 @@ var TimeModel = Model.extend({
    * @returns {Array} time array
    */
   getAllSteps: function() {
+    if(!this.start || !this.end) {
+      utils.warn("getAllSteps(): invalid start/end time is detected: " + this.start + ", " + this.end);
+      return [];
+    }
     var hash = "" + this.start + this.end + this.step;
     
     //return if cached
@@ -413,6 +407,11 @@ var TimeModel = Model.extend({
   incrementTime: function(time) {
     var is = this.getIntervalAndStep();
     return d3.time[is.interval].utc.offset(time, is.step);
+  },
+
+  decrementTime: function(time) {
+    var is = this.getIntervalAndStep();
+    return d3.time[is.interval].utc.offset(time, -is.step);
   },
 
   /**

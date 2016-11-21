@@ -1,15 +1,14 @@
 import * as utils from 'base/utils';
 import Tool from 'base/tool';
 
-import BubbleChartComponent from './bubblechart-component';
-import {
-  timeslider,
-  dialogs,
-  buttonlist,
-  treemenu,
-  datawarning,
-  datanotes
-} from 'components/_index';
+import BubbleChartComponent from 'tools/bubblechart/bubblechart-component';
+
+import timeslider from 'components/timeslider/timeslider';
+import dialogs from 'components/dialogs/dialogs';
+import buttonlist from 'components/buttonlist/buttonlist';
+import treemenu from 'components/treemenu/treemenu';
+import datawarning from 'components/datawarning/datawarning';
+import datanotes from 'components/datanotes/datanotes';
 
 var BubbleChart = Tool.extend('BubbleChart', {
 
@@ -27,11 +26,11 @@ var BubbleChart = Tool.extend('BubbleChart', {
     this.components = [{
       component: BubbleChartComponent,
       placeholder: '.vzb-tool-viz',
-      model: ["state.time", "state.entities", "state.marker", "state.marker_minimap", "language", "ui"] //pass models to component
+      model: ["state.time", "state.entities", "state.marker", "language", "ui"] //pass models to component
     }, {
       component: timeslider,
       placeholder: '.vzb-tool-timeslider',
-      model: ["state.time", "state.entities", "state.marker"]
+      model: ["state.time", "state.entities", "state.marker", "ui"]
     }, {
       component: dialogs,
       placeholder: '.vzb-tool-dialogs',
@@ -57,16 +56,16 @@ var BubbleChart = Tool.extend('BubbleChart', {
     this._super(placeholder, external_model);
 
   },
-  
+
   validate: function(model){
     model = this.model || model;
-    
+
     this._super(model);
-    
+
     if(model.ui.chart.lockNonSelected) {
        var time = model.state.time.timeFormat.parse("" + model.ui.chart.lockNonSelected);
        if(time < model.state.time.start) model.ui.chart.lockNonSelected = model.state.time.timeFormat(model.state.time.start);
-       if(time > model.state.time.end) model.ui.chart.lockNonSelected = model.state.time.timeFormat(model.state.time.end);       
+       if(time > model.state.time.end) model.ui.chart.lockNonSelected = model.state.time.timeFormat(model.state.time.end);
     }
   },
 
@@ -74,19 +73,26 @@ var BubbleChart = Tool.extend('BubbleChart', {
    * Determines the default model of this tool
    */
   default_model: {
-    state: { 
-      time: {
+    state: {
+      time: { },
+      entities: {
+        dim: "id"
+      },
+      entities_tags: { },
+      marker_tags: {
+        space: ["entities_tags"],
+        label: {},
+        hook_parent: {}
       },
       marker: {
-        axis_x: { },
-        axis_y: { },
-        label:  { },
-        size:   { },
-        color:  { },
+        space: ["entities", "time"],
+        axis_x: {use: "indicator", which: "x"},
+        axis_y: {use: "indicator", which: "y"},
+        label:  {use: "property", which: "id"},
+        size:   {/*use size model defaults - will be constant*/},
+        color:  {/*use color model defaults - will be constant*/},
         size_label: {
-          use: "constant",
-          which: "_default",
-          scaleType: "ordinal",
+          /*use size model defaults - will be constant*/
           _important: false,
           extent: [0, 0.33]
         },
@@ -108,18 +114,15 @@ var BubbleChart = Tool.extend('BubbleChart', {
         trails: true,
         lockNonSelected: 0
       },
+      datawarning: {
+        doubtDomain: [],
+        doubtRange: []
+      },
       presentation: false,
       adaptMinMaxZoom: false,
       cursorMode: 'arrow',
       zoomOnScrolling: false,
     }
-  },
-  
-  datawarning_content: {
-    title: "Some data has uncertainity!",
-    body: "Comparing the size of economy across countries and time is not trivial. The methods vary and the prices change. Gapminder has adjusted the picture for many such differences, but still we recommend you take these numbers with a large grain of salt.<br/><br/> Countries on a lower income levels have lower data quality in general, as less resources are available for compiling statistics. Historic estimates of GDP before 1950 are generally also more rough. <br/><br/> Data for child mortality is more reliable than GDP per capita, as the unit of comparison, dead children, is universally comparable across time and place. This is one of the reasons this indicator has become so useful to measure social progress. But the historic estimates of child mortality are still suffering from large uncertainties.<br/><br/> Learn more about the datasets and methods in this <a href='http://www.gapminder.org/news/data-sources-dont-panic-end-poverty' target='_blank'>blog post</a>",
-    doubtDomain: [1800, 1950, 2015],
-    doubtRange: [1.0, .3, .2]
   }
 });
 

@@ -6,11 +6,12 @@ import {
   question as iconQuestion
 } from 'base/iconset';
 
-import topojson from 'helpers/topojson';
 import d3_geo_projection from 'helpers/d3.geo.projection';
 import DynamicBackground from 'helpers/d3.dynamicBackground';
+import globals from 'base/globals';
 
-//import Selectlist from './bubblemap-selectlist';
+
+//import Selectlist from 'bubblemap-selectlist';
 
 //BUBBLE MAP CHART COMPONENT
 var CartogramComponent = Component.extend({
@@ -22,7 +23,7 @@ var CartogramComponent = Component.extend({
    */
   init: function (config, context) {
     this.name = 'cartogram';
-    this.template = 'cartogram.html';
+    this.template = require('./cartogram.html');
 
 
     //http://stackoverflow.com/questions/11381673/detecting-a-mobile-browser
@@ -48,7 +49,7 @@ var CartogramComponent = Component.extend({
       type: "language"
     }, {
       name: "ui",
-      type: "model"
+      type: "ui"
     }];
 
     var _this = this;
@@ -84,7 +85,7 @@ var CartogramComponent = Component.extend({
         _this.updateIndicators();
         _this.updateEntitityColor();
       },
-      
+
       'change:marker.size.use': function(evt, path) {
         _this.model.ui.chart.lockActive = _this.model.marker.size.use != "constant";
       },
@@ -164,7 +165,7 @@ var CartogramComponent = Component.extend({
 
   },
   _getKey: function(d) {
-    return d.properties[this.id_lookup]? d.properties[this.id_lookup].toString() : d.id.toString(); 
+    return d.properties[this.id_lookup]? d.properties[this.id_lookup].toString() : d.id.toString();
   },
   /**
    * DOM is ready
@@ -206,8 +207,8 @@ var CartogramComponent = Component.extend({
       if(_this.updateSize()) return;
     });
     this.wScale = d3.scale.linear()
-      .domain(this.parent.datawarning_content.doubtDomain)
-      .range(this.parent.datawarning_content.doubtRange);
+      .domain(this.model.ui.datawarning.doubtDomain)
+      .range(this.model.ui.datawarning.doubtRange);
 
     this.cartogram.iterations(0);
     this.redrawInProgress = true;
@@ -246,7 +247,7 @@ var CartogramComponent = Component.extend({
       }
     });
   },
-  
+
   frameChanged: function(frame, time) {
     if (time.toString() != this.model.time.value.toString()) return; // frame is outdated
     if (!frame) return;
@@ -255,7 +256,7 @@ var CartogramComponent = Component.extend({
     this.updateTitleNumbers();
     this.updateEntities(this.duration);
   },
-  
+
   /*
    * Both model and DOM are ready
    */
@@ -291,7 +292,7 @@ var CartogramComponent = Component.extend({
       this.sScale.rangePoints([this.minRadius, this.maxRadius], 0).range();
     }
   },
-  
+
   _calculateTotalSize: function(year, frame) {
     if (this.cached[year]) {
       return this.cached[year];
@@ -303,7 +304,7 @@ var CartogramComponent = Component.extend({
     });
     return this.cached[year];
   },
-   
+
   _redrawEntities: function() {
     var _this = this;
     if (this.updateEntitiesQueue.length == 0) return;
@@ -331,7 +332,7 @@ var CartogramComponent = Component.extend({
           if (_this.model.ui.chart.lockNonSelected) {
             var size1 = _this.sScale(lockedFrame.size[_this._getKey(d)])/* * _this._calculateTotalSize(_this.model.time.value, _this.values.size)*/,
               size2 = _this.sScale(_this.values.size[_this._getKey(d)])/* * _this._calculateTotalSize(time, lockedFrame.size)*/;
-            return d3.geo.path().projection(null).area(d) * Math.pow((size2 / size1), 2);  
+            return d3.geo.path().projection(null).area(d) * Math.pow((size2 / size1), 2);
           } else {
             return _this.sScale(_this.values.size[_this._getKey(d)]);
           }
@@ -396,10 +397,10 @@ var CartogramComponent = Component.extend({
       });
     });
   },
-    
+
   updateEntities: function(duration) {
     var time = this.model.time.value;
-    
+
     this.updateEntitiesQueue.push({time:time, duration: duration});
     this._redrawEntities();
   },
@@ -412,7 +413,7 @@ var CartogramComponent = Component.extend({
       .style("fill", function(d) {
         return _this.values.color[_this._getKey(d)]!=null?_this.cScale(_this.values.color[_this._getKey(d)]):_this.COLOR_LAND_DEFAULT;
       })
-    
+
   },
   updateUIStrings: function () {
     var _this = this;
@@ -425,7 +426,7 @@ var CartogramComponent = Component.extend({
         S: this.translator("buttons/size") + ": " + this.translator("indicator/" + _this.model.marker.size.which)
       }
     };
-    
+
     this.yTitleEl.select("text")
       //don't show "Color:" when the size is constant and we are only showing color
       .text(this.strings.title.C)
@@ -710,7 +711,7 @@ var CartogramComponent = Component.extend({
       var unitC = _this.translator("unit/" + _this.model.marker.color.which);
       //suppress unit strings that found no translation (returns same thing as requested)
       if(unitC === "unit/" + _this.model.marker.color.which) unitC = "";
-      
+
       var valueC = _this.values.color[_this._getKey(hovered)];
       _this.yTitleEl.select("text")
         .text(this.strings.title.C + ": " +
@@ -718,11 +719,11 @@ var CartogramComponent = Component.extend({
 
       if (this.model.marker.size.use !== "constant") {
         var formatterS = _this.model.marker.size.getTickFormatter();
-        
+
         var unitS = _this.translator("unit/" + _this.model.marker.size.which);
         //suppress unit strings that found no translation (returns same thing as requested)
         if(unitS === "unit/" + _this.model.marker.size.which) unitS = "";
-        
+
         var valueS = _this.values.size[_this._getKey(hovered)];
         _this.sTitleEl.select("text")
           .text(this.strings.title.S + ": " + formatterS(valueS) + " " + unitS);
@@ -740,7 +741,7 @@ var CartogramComponent = Component.extend({
       this.sInfoEl.classed("vzb-hidden", false);
     }
   },
-  
+
   _setTooltip: function (d) {
     var _this = this;
     if (d) {
@@ -804,7 +805,7 @@ var CartogramComponent = Component.extend({
       this.tooltip.classed("vzb-hidden", true);
     }
   },
-  
+
   updateLandOpacity: function() {
     var _this = this;
     //if(!duration)duration = 0;
@@ -846,6 +847,23 @@ var CartogramComponent = Component.extend({
     }
 
     this.someSelectedAndOpacityZero_1 = _this.someSelected && _this.model.entities.opacitySelectDim < .01;
+  },
+
+  preload: function() {
+    var _this = this;
+    var shape_path = globals.ext_resources.shapePath ? globals.ext_resources.shapePath :
+        globals.ext_resources.host + globals.ext_resources.preloadPath + "municipalities.json";
+
+    return new Promise(function(resolve, reject) {
+      d3.json(shape_path, function(error, json) {
+        if(error) return console.warn("Failed loading json " + shape_path + ". " + error);
+        _this.world = json;
+        _this.geometries = json.objects.topo.geometries;
+        _this.id_lookup = json.objects.id_lookup;
+        resolve();
+      });
+    });
+
   }
 
 

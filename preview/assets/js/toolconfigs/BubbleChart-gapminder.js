@@ -1,9 +1,12 @@
 var VIZABI_MODEL = { 
   "state": {
     "entities": {
-      "dim": "geo"
+      "dim": "geo",
+      "show": {
+        "is--country": true
+      }      
     },
-    "entities_minimap": {
+    "entities_colorlegend": {
       "dim": "geo",
       "show": {
         "is--world_4region": true
@@ -13,12 +16,16 @@ var VIZABI_MODEL = {
       "dim": "tag"
     },
     "time": {
-      "start": "1800",
-      "end": "2015",
+      "startOrigin": "1800",
+      "endOrigin": "2015",
       "value": "2015"
     },
     "marker": {
       "space": ["entities", "time"],
+      "label": {
+        "use": "property",
+        "which": "name"
+      },
       "axis_y": {
         "use": "indicator",
         "which": "life_expectancy_years",
@@ -41,23 +48,28 @@ var VIZABI_MODEL = {
         "which": "population_total",
         "domainMin": 15,
         "domainMax": 1400000000,
+        "scaleType": "linear",
         "allow": {
           "scales": ["linear"]
-        },
-        "extent": [0, 0.85]
+        }
       },
       "color": {
         "use": "property",
-        "which": "world_4region"
+        "which": "world_4region",
+        "syncModels": ["marker_colorlegend"]
       }
     },
-    "marker_minimap":{
-      "space": ["entities_minimap"],
+    "marker_colorlegend":{
+      "space": ["entities_colorlegend"],
       "label": {
         "use": "property",
         "which": "name"
       },
-      "geoshape": {
+      "hook_rank": {
+        "use": "property",
+        "which": "rank"
+      },
+      "hook_geoshape": {
         "use": "property",
         "which": "shape_lores_svg"
       }
@@ -68,10 +80,16 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "name"
       },
-      "parent": {
+      "hook_parent": {
         "use": "property",
         "which": "parent"
       }
     }
+  },
+  "ui": {
+    "datawarning": {
+      "doubtDomain": [1800, 1950, 2015],
+      "doubtRange": [1.0, 0.3, 0.2]
+    }
   }
-}
+};
