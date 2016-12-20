@@ -25,6 +25,7 @@ import DynamicBackground from 'helpers/d3.dynamicBackground';
 import globals from 'base/globals';
 
 var THICKNESS_THRESHOLD = 0.001;
+const COLOR_WHITEISH = "#d3d3d3";
 
 //MOUNTAIN CHART COMPONENT
 var MountainChartComponent = Component.extend({
@@ -46,7 +47,7 @@ var MountainChartComponent = Component.extend({
             { name: "time", type: "time" },
             { name: "entities", type: "entities" },
             { name: "marker", type: "model" },
-            { name: "language", type: "language" },
+            { name: "locale", type: "locale" },
             { name: "ui", type: "ui" }
         ];
 
@@ -101,24 +102,23 @@ var MountainChartComponent = Component.extend({
                     _this._export.reset();
                 }
             },
-            "change:entities.highlight": function (evt) {
+            "change:marker.highlight": function (evt) {
                 if (!_this._readyOnce) return;
-                _this.highlightEntities();
+                _this.highlightMarkers();
                 _this.updateOpacity();
             },
-            "change:entities.select": function (evt) {
+            "change:marker.select": function (evt) {
                 if (!_this._readyOnce) return;
-                _this.selectEntities();
+                _this.selectMarkers();
                 _this._selectlist.redraw();
-                _this.someSelectedAndOpacityZero = false;
                 _this.updateOpacity();
                 _this.updateDoubtOpacity();
                 _this.redrawDataPoints();
             },
-            "change:entities.opacitySelectDim": function (evt) {
+            "change:marker.opacitySelectDim": function (evt) {
                 _this.updateOpacity();
             },
-            "change:entities.opacityRegular": function (evt) {
+            "change:marker.opacityRegular": function (evt) {
                 _this.updateOpacity();
             },
             "change:marker": function (evt, path) {
@@ -301,7 +301,7 @@ var MountainChartComponent = Component.extend({
         this.TIMEDIM = this.model.time.getDimension();
 
         this.mountainAtomicContainer.select(".vzb-mc-prerender").remove();
-        this.year.setText(this.model.time.value.getUTCFullYear().toString());
+        this.year.setText(this.model.time.timeFormat(this.model.time.value));
         this.wScale = d3.scale.linear()
             .domain(this.model.ui.datawarning.doubtDomain)
             .range(this.model.ui.datawarning.doubtRange);
@@ -327,10 +327,9 @@ var MountainChartComponent = Component.extend({
           _this._adjustMaxY({force: true});
           _this.redrawDataPoints();
           _this.redrawDataPointsOnlyColors();
-          _this.highlightEntities();
-          _this.selectEntities();
+          _this.highlightMarkers();
+          _this.selectMarkers();
           _this._selectlist.redraw();
-          _this.someSelectedAndOpacityZero = false;
           _this.updateOpacity();
           _this.updateDoubtOpacity();
           _this._probe.redraw();
@@ -392,9 +391,11 @@ updateSize: function (meshLength) {
         //graph group is shifted according to margins (while svg element is at 100 by 100%)
         this.graph.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+        var isRTL = this.model.locale.isRTL();
+
         var yearLabelOptions = {
             topOffset: this.getLayoutProfile()==="large"? margin.top * 2 : 0,
-            xAlign: this.getLayoutProfile()==="large"? 'right' : 'center',
+            xAlign: this.getLayoutProfile()==="large"? (isRTL ? 'left' : 'right') : 'center',
             yAlign: this.getLayoutProfile()==="large"? 'top' : 'center',
         };
 
@@ -417,6 +418,7 @@ updateSize: function (meshLength) {
         this.xAxis.scale(this.xScale)
             .orient("bottom")
             .tickSize(6, 0)
+            .tickPadding(9)
             .tickSizeMinor(3, 0)
             .labelerOptions({
                 scaleType: scaleType,
@@ -438,7 +440,7 @@ updateSize: function (meshLength) {
 
         this.yTitleEl
           .style("font-size", infoElHeight + "px")
-          .attr("transform", "translate(0," + margin.top + ")")
+          .attr("transform", "translate(" + (isRTL ? this.width : 0) + "," + margin.top + ")")
 
 
         var warnBB = this.dataWarningEl.select("text").node().getBBox();
@@ -449,19 +451,20 @@ updateSize: function (meshLength) {
             .attr("y", -warnBB.height * 1.0 + 1)
 
         this.dataWarningEl
-            .attr("transform", "translate(" + (0) + "," + (margin.top + warnBB.height * 1.5) + ")")
+            .attr("transform", "translate(" + (isRTL ? this.width - warnBB.width - warnBB.height * 2 : 0) + "," + (margin.top + warnBB.height * 1.5) + ")")
             .select("text")
             .attr("dx", warnBB.height * 1.5);
 
         if(this.infoEl.select('svg').node()) {
             var titleBBox = this.yTitleEl.node().getBBox();
             var translate = d3.transform(this.yTitleEl.attr('transform')).translate;
+            var hTranslate = isRTL ? (titleBBox.x + translate[0] - infoElHeight * 1.4) : (titleBBox.x + translate[0] + titleBBox.width + infoElHeight * .4);
 
             this.infoEl.select('svg')
                 .attr("width", infoElHeight + "px")
                 .attr("height", infoElHeight + "px");
             this.infoEl.attr('transform', 'translate('
-                + (titleBBox.x + translate[0] + titleBBox.width + infoElHeight * .4) + ','
+                + hTranslate + ','
                 + (translate[1]-infoElHeight * .8) + ')');
         }
 
@@ -495,7 +498,7 @@ updateSize: function (meshLength) {
     updateUIStrings: function () {
         var _this = this;
 
-        this.translator = this.model.language.getTFunction();
+        this.translator = this.model.locale.getTFunction();
         var xConceptprops = this.model.marker.axis_x.getConceptprops();
 
 
@@ -518,7 +521,9 @@ updateSize: function (meshLength) {
         this.infoEl.on("mouseover", function() {
           var rect = this.getBBox();
           var coord = utils.makeAbsoluteContext(this, this.farthestViewportElement)(rect.x - 10, rect.y + rect.height + 10);
-          _this.parent.findChildByName("gapminder-datanotes").setHook('axis_y').show().setPos(coord.x, coord.y);
+          var toolRect = _this.root.element.getBoundingClientRect();
+          var chartRect = _this.element.node().getBoundingClientRect();      
+          _this.parent.findChildByName("gapminder-datanotes").setHook('axis_y').show().setPos(coord.x + chartRect.left - toolRect.left, coord.y);
         })
         this.infoEl.on("mouseout", function() {
           _this.parent.findChildByName("gapminder-datanotes").hide();
@@ -686,7 +691,7 @@ updateSize: function (meshLength) {
             .on("click", function (d, i) {
                 if (utils.isTouchDevice()) return;
                 _this._interact()._click(d, i);
-                _this.highlightEntities();
+                _this.highlightMarkers();
             })
             .onTap(function (d, i) {
                 _this._interact()._click(d, i);
@@ -703,7 +708,7 @@ updateSize: function (meshLength) {
             _mousemove: function (d, i) {
                 if (_this.model.time.dragging || _this.model.time.playing) return;
 
-                _this.model.entities.highlightEntity(d);
+                _this.model.marker.highlightMarker(d);
 
                 var mouse = d3.mouse(_this.graph.node()).map(function (d) {
                     return parseInt(d);
@@ -718,35 +723,36 @@ updateSize: function (meshLength) {
                 if (_this.model.time.dragging || _this.model.time.playing) return;
 
                 _this._setTooltip("");
-                _this.model.entities.clearHighlighted();
+                _this.model.marker.clearHighlighted();
                 _this._selectlist.showCloseCross(d, false);
 
             },
             _click: function (d, i) {
                 if (_this.model.time.dragging || _this.model.time.playing) return;
 
-                _this.model.entities.selectEntity(d);
+                _this.model.marker.selectMarker(d);
             }
         };
 
     },
 
-    highlightEntities: function () {
+    highlightMarkers: function () {
         var _this = this;
-        this.someHighlighted = (this.model.entities.highlight.length > 0);
+        this.someHighlighted = (this.model.marker.highlight.length > 0);
 
         if (!this.selectList || !this.someSelected) return;
         this.selectList.classed("vzb-highlight", function (d) {
-            return _this.model.entities.isHighlighted(d);
+            return _this.model.marker.isHighlighted(d);
         });
 
     },
 
-    selectEntities: function () {
+    selectMarkers: function () {
         var _this = this;
-        this.someSelected = (this.model.entities.select.length > 0);
+        this.someSelected = (this.model.marker.select.length > 0);
 
         this._selectlist.rebuild();
+        this.nonSelectedOpacityZero = false;
     },
 
     _sumLeafPointersByMarker: function (branch, marker) {
@@ -763,20 +769,20 @@ updateSize: function (meshLength) {
 
         var OPACITY_HIGHLT = 1.0;
         var OPACITY_HIGHLT_DIM = .3;
-        var OPACITY_SELECT = this.model.entities.opacityRegular;
-        var OPACITY_REGULAR = this.model.entities.opacityRegular;
-        var OPACITY_SELECT_DIM = this.model.entities.opacitySelectDim;
+        var OPACITY_SELECT = this.model.marker.opacityRegular;
+        var OPACITY_REGULAR = this.model.marker.opacityRegular;
+        var OPACITY_SELECT_DIM = this.model.marker.opacitySelectDim;
 
         this.mountains.style("opacity", function (d) {
 
             if (_this.someHighlighted) {
                 //highlight or non-highlight
-                if (_this.model.entities.isHighlighted(d)) return OPACITY_HIGHLT;
+                if (_this.model.marker.isHighlighted(d)) return OPACITY_HIGHLT;
             }
 
             if (_this.someSelected) {
                 //selected or non-selected
-                return _this.model.entities.isSelected(d) ? OPACITY_SELECT : OPACITY_SELECT_DIM;
+                return _this.model.marker.isSelected(d) ? OPACITY_SELECT : OPACITY_SELECT_DIM;
             }
 
             if (_this.someHighlighted) return OPACITY_HIGHLT_DIM;
@@ -786,27 +792,29 @@ updateSize: function (meshLength) {
         });
 
         this.mountains.classed("vzb-selected", function (d) {
-            return _this.model.entities.isSelected(d)
+            return _this.model.marker.isSelected(d)
         });
 
-        var someSelectedAndOpacityZero = _this.someSelected && _this.model.entities.opacitySelectDim < .01;
+        var nonSelectedOpacityZero = _this.model.marker.opacitySelectDim < .01;
 
         // when pointer events need update...
-        if (someSelectedAndOpacityZero !== this.someSelectedAndOpacityZero) {
+        if (nonSelectedOpacityZero !== this.nonSelectedOpacityZero) {
             this.mountainsAtomic.style("pointer-events", function (d) {
-                return (!someSelectedAndOpacityZero || _this.model.entities.isSelected(d)) ?
+                return (!_this.someSelected || !nonSelectedOpacityZero || _this.model.marker.isSelected(d)) ?
                     "visible" : "none";
             });
         }
 
-        this.someSelectedAndOpacityZero = _this.someSelected && _this.model.entities.opacitySelectDim < .01;
+        this.nonSelectedOpacityZero = _this.model.marker.opacitySelectDim < .01;
     },
 
     updateTime: function (time) {
         var _this = this;
 
+        this.time_1 = this.time == null ? this.model.time.value : this.time;
         this.time = this.model.time.value;
-        this.year.setText(this.model.time.format(this.time));
+        this.duration = this.model.time.playing && (this.time - this.time_1 > 0) ? this.model.time.delayAnimations : 0;
+        this.year.setText(this.model.time.timeFormat(this.time), this.duration);
         if (time == null) time = this.time;
 
         this.yMax = 0;
@@ -1020,13 +1028,13 @@ updateSize: function (meshLength) {
 
         this.mountainsMergeGrouped.each(function (d) {
             var view = d3.select(this);
-            var hidden = (!mergeGrouped && !dragOrPlay) || (mergeStacked && !_this.model.entities.isSelected(d));
+            var hidden = (!mergeGrouped && !dragOrPlay) || (mergeStacked && !_this.model.marker.isSelected(d));
             _this._renderShape(view, d.KEY(), hidden);
         });
 
         this.mountainsAtomic.each(function (d, i) {
             var view = d3.select(this);
-            var hidden = d.hidden || ((mergeGrouped || mergeStacked || dragOrPlay) && !_this.model.entities.isSelected(d));
+            var hidden = d.hidden || ((mergeGrouped || mergeStacked || dragOrPlay) && !_this.model.marker.isSelected(d));
             _this._renderShape(view, d.KEY(), hidden);
         })
 
@@ -1063,8 +1071,16 @@ updateSize: function (meshLength) {
     redrawDataPointsOnlyColors: function () {
         var _this = this;
         if(!this.mountains) return utils.warn("redrawDataPointsOnlyColors(): no mountains  defined. likely a premature call, fix it!");
+        var isColorUseIndicator = this.model.marker.color.use === "indicator";
         this.mountains.style("fill", function (d) {
-            return _this.values.color[d.KEY()]?_this.cScale(_this.values.color[d.KEY()]):"transparent";
+            return _this.values.color[d.KEY()] ? 
+              ( isColorUseIndicator && _this.values.color[d.KEY()] == "_default" ? 
+               _this.model.marker.color.palette["_default"] 
+               : 
+               _this.cScale(_this.values.color[d.KEY()])
+              ) 
+            : 
+            COLOR_WHITEISH;
         });
     },
 
@@ -1081,14 +1097,21 @@ updateSize: function (meshLength) {
 
         var filter = {};
         filter[this.KEY] = key;
-        if (this.model.entities.isSelected(filter)) {
+        if (this.model.marker.isSelected(filter)) {
             view.attr("d", this.area(this.cached[key].filter(function (f) {return f.y > _this.values.axis_y[key] * THICKNESS_THRESHOLD })));
         } else {
             view.attr("d", this.area(this.cached[key]));
         }
 
         if (this.model.marker.color.use === "indicator") view
-            .style("fill", this.values.color[key] ? _this.cScale(this.values.color[key]) : "transparent");
+            .style("fill", _this.values.color[key] ? 
+                   ( _this.values.color[key] == "_default" ? 
+                    _this.model.marker.color.palette["_default"] 
+                    : 
+                    _this.cScale(_this.values.color[key])) 
+                   : 
+                   COLOR_WHITEISH
+                  );
 
         if (stack !== "none") view
             .transition().duration(Math.random() * 900 + 100).ease("circle")

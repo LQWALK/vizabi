@@ -67,7 +67,7 @@ var Show = Dialog.extend({
   redraw: function(){
 
     var _this = this;
-    this.translator = this.model.language.getTFunction();
+    this.translator = this.model.locale.getTFunction();
 
     this.model.state.marker_allpossible.getFrame(this.model.state.time.value, function(values) {
     if(!values) return;
@@ -102,6 +102,8 @@ var Show = Dialog.extend({
         return _this.model.state.entities.isShown(d);
       })
       .on("change", function(d) {
+
+        _this.model.state.marker.clearSelected();
         _this.model.state.entities.showEntity(d);
         _this.showHideDeselect();
       });

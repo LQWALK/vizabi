@@ -3,7 +3,8 @@ var VIZABI_MODEL = {
     "time": {
       "value": "2011",
       "start": "1996",
-      "end": "2011"
+      "end": "2011",
+      "dim": "time"
     },
     "entities": {
       "dim": "geo",
@@ -97,5 +98,16 @@ var VIZABI_MODEL = {
         "which": "zaf_population"
       }
     }
+  },
+  "data": {
+    "reader": "csv",
+    "path": "data/zaf/waffles/ddf--datapoints--population--by--year--age--education-gender-add-tfr.csv",
+    "splash": false
   }
+};
+
+var EXT_RESOURCES = {
+  "host": LOCAL_URL,
+  "preloadPath": "data/zaf/",
+  "dataPath": "data/zaf/waffles/"
 };

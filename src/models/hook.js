@@ -13,40 +13,67 @@ var Hook = DataConnected.extend({
   _important: false,
 
   dataConnectedChildren: ['use', 'which'],
+  
+  getClassDefaults: function() { 
+    var defaults = {
+      data: 'data'
+    };
+    return utils.deepExtend(this._super(), defaults)
+  },
 
-  init: function(name, values, parent, bind) {
+  buildScale: function(){
+    //overloaded by specific hook models, like axis and color
+  },
 
-    this._super(name, values, parent, bind);
-
-    var _this = this;
+  /**
+   * After complete model tree is created, this allows models to listen to eachother. 
+   */
+  setInterModelListeners: function() {
     var spaceRefs = this._parent.getSpace(this);
 
     //check what we want to hook this model to
-    utils.forEach(spaceRefs, function(name) {
+    utils.forEach(spaceRefs, name => {
       //hook with the closest prefix to this model
-      _this._space[name] = _this.getClosestModel(name);
+      this._space[name] = this.getClosestModel(name);
       //if hooks change, this should load again
-      _this._space[name].on('dataConnectedChange', function(evt) {
-        //hack for right size of bubbles
-        if(_this._type === 'size' && _this.which === _this.which_1) {
-          _this.which_1 = '';
-        };
-        //defer is necessary because other events might be queued.
-        //load right after such events
-        utils.defer(function() {
-          _this.startLoading().then(function() {
-
-          }, function(err) {
-            utils.warn(err);
-          });
-        });
-      })
+      this._space[name].on('dataConnectedChange', this.handleDataConnectedChange.bind(this));
     });
+    this.getClosestModel('locale').on('dataConnectedChange', this.handleDataConnectedChange.bind(this));
+  },
+
+  onSuccessfullLoad: function() {
+    this.buildScale();
+    this._super();
+  },
+
+  setWhich: function(newValue) {
+
+    var obj = { which: newValue.concept, data: newValue.dataSource };
+    var newDataSource = this.getClosestModel(newValue.dataSource);
+    var conceptProps = newDataSource.getConceptprops(newValue.concept);
+
+    if(conceptProps.use) obj.use = conceptProps.use;
+
+    if(conceptProps.scales) {
+      obj.scaleType = conceptProps.scales[0];
+    }
+
+    if(this.getType() === 'axis' || this.getType() === 'size') {
+      obj.domainMin = null;
+      obj.domainMax = null;
+      obj.zoomedMin = null;
+      obj.zoomedMax = null;
+    }
+
+    this.set(obj);
+  },
+  
+  setScaleType: function(newValue) {
+    this.buildScale(newValue);
   },
 
   preloadData: function() {
-    var dataModel = (this.data) ? this.data : 'data';
-    this.dataSource = this.getClosestModel(dataModel);
+    this.dataSource = this.getClosestModel(this.data);
     return this._super();
   },
 
@@ -58,25 +85,23 @@ var Hook = DataConnected.extend({
    * @param {Object} options (includes splashScreen)
    * @returns defer
    */
-  loadData: function(opts) {
+  loadData: function(opts = {}) {
 
+    // then start loading data
 
     if(!this.which) return Promise.resolve();
 
     this.trigger('hook_change');
 
-    opts = opts || {};
+    // TODO: should be set on data source switch, but load happens before change events
+    this.dataSource = this.getClosestModel(this.data);
 
     var query = this.getQuery(opts.splashScreen);
 
     //useful to check if in the middle of a load call
     this._loadCall = true;
 
-    this._spaceDims = {};
     this.setReady(false);
-
-
-    var _this = this;
 
     utils.timeStamp('Vizabi Model: Loading Data: ' + this._id);
 
@@ -85,11 +110,22 @@ var Hook = DataConnected.extend({
 
     dataPromise.then(
       this.afterLoad.bind(this),
-      this.loadError.bind(this)
+      err => utils.warn('Problem with query: ', err, JSON.stringify(query))
     );
 
     return dataPromise;
 
+  },
+
+  handleDataConnectedChange: function(evt) {
+    //defer is necessary because other events might be queued.
+    //load right after such events
+    utils.defer(() => {
+      this.startLoading().then(
+        undefined,
+        err => utils.warn(err)
+      );
+    });
   },
 
   _isLoading: function() {
@@ -102,12 +138,6 @@ var Hook = DataConnected.extend({
   afterLoad: function(dataId) {
     this._dataId = dataId;
     utils.timeStamp('Vizabi Model: Data loaded: ' + this._id);
-    this.scale = null; // needed for axis/scale resetting to new data
-    EventSource.unfreezeAll();
-  },
-
-  loadError: function() {
-      utils.warn('Problem with query: ', JSON.stringify(query));
   },
 
   /**
@@ -119,8 +149,6 @@ var Hook = DataConnected.extend({
 
     var dimensions, filters, select, from, order_by, q, animatable;
 
-    //if it's not a hook, no query is necessary
-    if(!this.isHook()) return true;
     //error if there's nothing to hook to
     if(Object.keys(this._space).length < 1) {
       utils.error('Error:', this._id, 'can\'t find the space');
@@ -163,7 +191,7 @@ var Hook = DataConnected.extend({
 
     //return query
     return {
-      'language': this.getClosestModel('language').id,
+      'language': this.getClosestModel('locale').id,
       'from': from,
       'animatable': animatable,
       'select': select,
@@ -367,42 +395,10 @@ var Hook = DataConnected.extend({
    * Gets the d3 scale for this hook. if no scale then builds it
    * @returns {Array} domain
    */
-  getScale: function(margins) {
-    if(!this.scale) {
-      this.buildScale(margins);
-    }
+  getScale: function() {
+    if (this.scale == null) console.warn('scale is null')
     return this.scale;
   },
-
-  /**
-   * Gets the domain for this hook
-   * @returns {Array} domain
-   */
-  buildScale: function() {
-    if(!this.isHook()) {
-      return;
-    }
-    var domain;
-    var scaleType = this.scaleType || 'linear';
-    switch(this.use) {
-      case 'indicator':
-        var limits = this.getLimits(this.which);
-        domain = [
-          limits.min,
-          limits.max
-        ];
-        break;
-      case 'property':
-        domain = this.getUnique(this.which);
-        break;
-      default:
-        domain = [this.which];
-        break;
-    }
-    //TODO: d3 is global?
-    this.scale = scaleType === 'time' ? d3.time.scale.utc().domain(domain) : d3.scale[scaleType]().domain(domain);
-  },
-
 
    /**
    * Gets unique values in a column

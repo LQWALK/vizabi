@@ -1,3 +1,4 @@
+import * as utils from 'base/utils';
 //d3.svg.axisSmart
 
 export default function axisSmart() {
@@ -18,6 +19,13 @@ export default function axisSmart() {
     }
 
     function axis(g) {
+      var checkDmn = axis.scale().domain();
+      var checkRng = axis.scale().range();
+      if(!checkDmn[0] && checkDmn[0]!==0 || !checkDmn[1] && checkDmn[1]!==0 
+      || !checkRng[0] && checkRng[0]!==0 || !checkRng[1] && checkRng[1]!==0){
+        return utils.warn("d3.svg.axisSmart() skips action because of invalid domain " + JSON.stringify(checkDmn) + " or range " + JSON.stringify(checkRng) + " of the attached scale");
+      }
+      
       if(highlightValue != null) {
         axis.highlightValueRun(g);
         return;
@@ -58,7 +66,7 @@ export default function axisSmart() {
         .append("text")
       
       // patch the label positioning after the view is generated
-      var tickSizeWithPadding = axis.tickPadding() + axis.tickSize();
+      var padding = axis.tickPadding();
       g.selectAll("text")
         .each(function(d, i) {
           if(axis.pivot() == null) return;
@@ -66,10 +74,10 @@ export default function axisSmart() {
           var view = d3.select(this);
           view.attr("transform", "rotate(" + (axis.pivot() ? -90 : 0) + ")");
           view.style("text-anchor", dimension == X ? "middle" : "end");
-          view.attr("x", dimension == X ? (orient == VERTICAL ? -tickSizeWithPadding : 0) : -tickSizeWithPadding);
-          view.attr("y", dimension == X ? (orient == VERTICAL ? 0 : tickSizeWithPadding) : 0);
-          view.attr("dx", dimension == X ? (orient == VERTICAL ? tickSizeWithPadding : 0) : 0);
-          view.attr("dy", dimension == X ? (orient == VERTICAL ? -tickSizeWithPadding : ".72em") : ".32em");
+          view.attr("x", dimension == X ? (orient == VERTICAL ? -padding : 0) : -padding);
+          view.attr("y", dimension == X ? (orient == VERTICAL ? 0 : padding) : 0);
+          view.attr("dx", dimension == X ? (orient == VERTICAL ? padding : 0) : 0);
+          view.attr("dy", dimension == X ? (orient == VERTICAL ? -padding : ".72em") : ".32em");
         });
       
       //apply label repositioning: first and last visible values would shift away from the borders
@@ -92,10 +100,10 @@ export default function axisSmart() {
 
       // add minor ticks. if none exist add an empty array
       if(axis.tickValuesMinor() == null) axis.tickValuesMinor([]);
-      var minorTicks = g.selectAll(".tickMinor").data(tickValuesMinor);
+      var minorTicks = g.selectAll(".tick-minor").data(tickValuesMinor);
       minorTicks.exit().remove();
       minorTicks.enter().append("line")
-        .attr("class", "tickMinor");
+        .attr("class", "tick-minor");
 
       var tickLengthOut = axis.tickSizeMinor().outbound;
       var tickLengthIn = axis.tickSizeMinor().inbound;
@@ -145,9 +153,7 @@ export default function axisSmart() {
       
       //set content and visibility of HL value
       g.select('.vzb-axis-value')
-        .classed("vzb-hidden", highlightValue == "none")
-        .select("text")
-        .text(options.formatter(highlightValue == "none" ? 0 : highlightValue));
+        .classed("vzb-hidden", highlightValue == "none");
       
       var bbox;
       var o = {};
@@ -204,6 +210,12 @@ export default function axisSmart() {
           .ease("linear")
           .attr("transform", getTransform);
         
+        g.select('.vzb-axis-value')
+          .select("text")
+          .transition("text")
+          .delay(highlightTransDuration)
+          .text(highlightValue == "none" ? "" : options.formatter(highlightValue));
+        
         g.selectAll(".tick:not(.vzb-hidden)").each(function(d, t) {
           d3.select(this).select("text")
             .transition()
@@ -216,6 +228,12 @@ export default function axisSmart() {
         g.select('.vzb-axis-value')
           .interrupt()
           .attr("transform", getTransform)
+          .transition();
+        
+        g.select('.vzb-axis-value')
+          .select("text")
+          .interrupt()
+          .text(highlightValue == "none" ? "" : options.formatter(highlightValue))
           .transition();
           
         g.selectAll(".tick:not(.vzb-hidden)").each(function(d, t) {
@@ -393,10 +411,9 @@ export default function axisSmart() {
         })) * options.widthOfOneDigit + parseInt(options.cssMargin.left);
 
       var pivot = options.isPivotAuto && (
-        (estLongestLabelLength + axis.tickPadding() + axis.tickSize() > options.pivotingLimit) && (orient ==
-          VERTICAL) ||
-        !(estLongestLabelLength + axis.tickPadding() + axis.tickSize() > options.pivotingLimit) && !(orient ==
-          VERTICAL)
+        (estLongestLabelLength + axis.tickPadding() > options.pivotingLimit) && (orient == VERTICAL) 
+        ||
+        !(estLongestLabelLength + axis.tickPadding() > options.pivotingLimit) && !(orient == VERTICAL)
       );
 
       var labelsStackOnTop = (orient == HORIZONTAL && pivot || orient == VERTICAL && !pivot);

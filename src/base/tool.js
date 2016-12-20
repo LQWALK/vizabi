@@ -3,11 +3,9 @@ import Model from 'base/model'
 import Component from 'base/component'
 import { DefaultEvent } from 'base/events'
 import { warn as warnIcon } from 'base/iconset'
-import Promise from 'base/promise';
 
 var class_loading_first = 'vzb-loading-first';
 var class_loading_data = 'vzb-loading-data';
-var class_loading_error = 'vzb-loading-error';
 var class_placeholder = 'vzb-placeholder';
 var class_buttons_off = 'vzb-buttonlist-off';
 
@@ -27,13 +25,12 @@ var ToolModel = Model.extend({
 
     // defaults are defined on the Tool
     // this way, each tool can have it's own default model
-    this._defaults = tool.default_model;
+    this.getClassDefaults = () => tool.default_model;
 
     // combine listeners from tool and external page to one object
     var listeners = utils.extend(tool.getToolListeners(), external_model.bind);
     delete external_model.bind; // bind shouldn't go to model tree
 
-    //constructor is similar to model
     this._super(tool.name, external_model, null, listeners);
   },
 
@@ -42,7 +39,7 @@ var ToolModel = Model.extend({
    * Tool defaults overwrite other models' default
    */
   getDefaults: function() {
-    return utils.deepExtend({}, this.getSubmodelDefaults(), this._defaults);
+    return utils.deepExtend({}, this.getSubmodelDefaults(), this.getClassDefaults());
   },
 
   validate: function() {
@@ -68,6 +65,8 @@ var ToolModel = Model.extend({
   }
 
 });
+
+
 //tool
 var Tool = Component.extend({
  /**
@@ -80,30 +79,28 @@ var Tool = Component.extend({
 
     this.template = this.getToolTemplate();
 
+    // super also calls createModel
     this._super({
       placeholder: placeholder,
       model: external_model
     });
+
+    // 
 
     //splash
     this.model.ui.splash = this.model && this.model.data && this.model.data.splash;
 
     this.render();
 
-    this.startLoading();
-
     this.setCSSClasses();
     this.setResizeHandler();
-  },
-
-  ready: function() {
-    this.checkTimeLimits();  
   },
 
   createModel: function(external_model) {
     external_model      = external_model      || {}; //external model can be undefined
     external_model.bind = external_model.bind || {}; //bind functions can be undefined
     this.model = new ToolModel(this, external_model);
+    this.model.setInterModelListeners();
   },
   
   getToolTemplate: function() {
@@ -147,7 +144,7 @@ var Tool = Component.extend({
         },
         'hook_change': function() {
           if (!_this.model.state.time.splash) { // not block when it initial splash screen
-            _this.beforeLoading(true);
+            _this.beforeLoading();
           }
         },
         'change:ui.presentation': function() {
@@ -159,17 +156,11 @@ var Tool = Component.extend({
             _this.triggerResize();
           }
         },
-        'translate:language': function() {
+        'translate:locale': function() {
           _this.translateStrings();
+          _this.model.ui.setRTL(_this.model.locale.isRTL());
         },
-        'load_start': function() {
-          _this.beforeLoading();
-        },
-        'ready': function(evt) {
-          if(_this._ready) {
-            _this.afterLoading();
-          }
-        }      
+        'load_error': this.renderError.bind(this)
       });
   },
 
@@ -209,10 +200,8 @@ var Tool = Component.extend({
           //delay to avoid conflicting with setReady
           utils.delay(function() {
             //force loading because we're restoring time.
-            _this.model.setLoading('restore_orig_time');
 
             _this.model.startLoading().then(function() {
-              _this.model.setLoadingDone('restore_orig_time');
               timeMdl.splash = false;
               //_this.model.data.splash = false;
               timeMdl.trigger('change', timeMdl.getPlainObject());
@@ -237,30 +226,6 @@ var Tool = Component.extend({
         });
       }
     })
-  },
-
-  checkTimeLimits: function() {
-    if(!this.model.state.time) return;
-    
-    var time = this.model.state.time;
-    
-    if(this.model.state.marker) {
-      var tLimits = this.model.state.marker.getTimeLimits(time.getDimension());
-
-      if(!tLimits || !utils.isDate(tLimits.min) || !utils.isDate(tLimits.max)) 
-          return utils.warn("checkTimeLimits(): min-max look wrong: " + tLimits.min + " " + tLimits.max + ". Expecting Date objects");
-
-      // change start and end (but keep startOrigin and endOrigin for furhter requests)
-      var newTime = {}
-      if(time.start - tLimits.min != 0) newTime['start'] = d3.max([tLimits.min, time.parseToUnit(time.startOrigin)]);
-      if(time.end - tLimits.max != 0) newTime['end'] = d3.min([tLimits.max, time.parseToUnit(time.endOrigin)]);
-      if(time.value == null) newTime['value'] = time.parseToUnit(time.format(new Date())); // default to current date. Other option: newTime['start'] || newTime['end'] || time.start || time.end;
-
-      time.set(newTime, false, false);
-    }
-      
-    //force time validation because time.value might now fall outside of start-end
-    time.validate(); 
   },
 
   getPersistentModel: function() {
@@ -334,27 +299,10 @@ var Tool = Component.extend({
   /**
    * Displays loading class
    */
-  beforeLoading: function(loadingData) {
-    if(!this._readyOnce) {
-        utils.addClass(this.placeholder, class_loading_first);    
-    }
-    if(loadingData) {
-        utils.addClass(this.placeholder, class_loading_data);    
-    }
+  beforeLoading: function() {
+    utils.addClass(this.placeholder, class_loading_data);    
   },
-  /**
-   * Removes loading class
-   */
-  afterLoading: function() {
-    utils.removeClass(this.placeholder, class_loading_first);
-    utils.removeClass(this.placeholder, class_loading_data);
-  },
-  /**
-   * Adds loading error class
-   */
-  errorLoading: function() {
-    utils.addClass(this.placeholder, class_loading_error);
-  },
+
   /* ==========================
    * Validation and query
    * ==========================

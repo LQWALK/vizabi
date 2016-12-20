@@ -7,10 +7,6 @@ import axisSmart from 'helpers/d3.axisWithLabelPicker';
  * VIZABI BUBBLE COLOR LEGEND COMPONENT
  */
 
-var OPACITY_REGULAR = 0.8;
-var OPACITY_DIM = 0.5;
-var OPACITY_HIGHLIGHT = 1;
-
 var ColorLegend = Component.extend({
 
   init: function(config, context) {
@@ -28,13 +24,9 @@ var ColorLegend = Component.extend({
         name: "marker",
         type: "model"
       }, {
-        name: "language",
-        type: "language"
+        name: "locale",
+        type: "locale"
       }];
-
-    this.needsUpdate = false;
-    this.which_1 = false;
-    this.scaleType_1 = false;
 
     this.model_binds = {
       "change:marker.color.scaleType": function(evt, path) {
@@ -45,25 +37,20 @@ var ColorLegend = Component.extend({
         if(!_this._readyOnce || !_this.frame) return;
         _this.updateView();
       },
-      "change:entities.highlight": function(evt, values) {
+      "change:marker.highlight": function(evt, values) {
         if(_this.colorModel.use !== "property") return;
-        var _highlightedEntity = _this.model.entities.getHighlighted();
-        if(_highlightedEntity.length > 1) return;
 
-        if(_highlightedEntity.length) {
-            _this.model.marker.getFrame(_this.model.time.value, function(frame) {
-              if(!frame) return;
-
-              var _highlightedEntity = _this.model.entities.getHighlighted();
-              if(_highlightedEntity.length) {
-                _this.updateGroupsOpacity(frame["color"][_highlightedEntity[0]]);
-              }
-            });
-        } else if (values !== null && values !== "highlight") {
-          _this.updateGroupsOpacity(values["color"]);
-        } else {
-          _this.updateGroupsOpacity();
-        }
+        _this.model.marker.getFrame(_this.model.time.value, function(frame) {
+          if(frame) {
+            var _hlEntities = _this.model.marker.getHighlighted(_this.KEY);
+            _this.updateGroupsOpacity(_hlEntities.map((d)=>frame["color"][d]));
+          }else{
+            _this.updateGroupsOpacity();
+          }
+        });
+      },
+      "translate:locale":  function() {
+        _this.colorPicker.translate(_this.model.locale.getTFunction());
       }
     };
 
@@ -100,7 +87,7 @@ var ColorLegend = Component.extend({
     this.labelScaleSVG = this.labelScaleEl.append("svg");
     this.labelScaleG = this.labelScaleSVG.append("g");
     this.unitDiv = this.listColorsEl.append("div").attr("class", "vzb-cl-unit");
-    this.unitText = this.unitDiv.append("text").attr("class", "vzb-cl-unit-text");
+    this.unitText = this.unitDiv.append("span").attr("class", "vzb-cl-unit-text");
 
     this.minimapSVG = this.minimapEl.append("svg");
     this.minimapG = this.minimapSVG.append("g");
@@ -110,8 +97,7 @@ var ColorLegend = Component.extend({
     // append color picker to the tool DOM. need to check if element is already a d3 selection to not do it twice
     this.root.element instanceof Array? this.root.element : d3.select(this.root.element)
       .call(this.colorPicker);
-
-    OPACITY_DIM = this.model.entities.opacitySelectDim;
+    this.colorPicker.translate(this.model.locale.getTFunction());
   },
 
 
@@ -137,11 +123,13 @@ var ColorLegend = Component.extend({
           if(!((_this.frame||{}).hook_geoshape||{})[d[_this.colorlegendDim]]) _this.canShowMap = false;
         });
         _this.updateView();
+        _this.updateGroupsOpacity();
       });
       return;
     }
 
     _this.updateView();
+    _this.updateGroupsOpacity();
   },
 
 
@@ -230,6 +218,7 @@ var ColorLegend = Component.extend({
         .orient("bottom")
         //.tickFormat(formatter)
         .tickSize(6, 0)
+        .tickPadding(6)
         .tickSizeMinor(3, 0)
         .labelerOptions({
           scaleType: this.colorModel.scaleType,
@@ -259,7 +248,7 @@ var ColorLegend = Component.extend({
       this.rainbowLegend.enter().append("circle")
         .attr('r', "6px")
         .attr('stroke', '#000')
-        .on("click", _this._interact().click);
+        .on("click", _this._interact().clickToChangeColor);
 
       this.rainbowLegend.each(function(d, i) {
         d3.select(this).attr('fill', d.color);
@@ -278,11 +267,6 @@ var ColorLegend = Component.extend({
       this.unitDiv.classed("vzb-hidden", unit == "");
       this.unitText.text(unit);
 
-      //Apply names as formatted numbers
-      // colorOptions.each(function(d, index) {
-      //   d3.select(this).select(".vzb-cl-color-legend")
-      //     .text(_this.colorModel.getTickFormatter()(domain[index]))
-      // });
       colorOptions.classed("vzb-hidden", true);
 
     } else {
@@ -304,14 +288,13 @@ var ColorLegend = Component.extend({
 
         colorOptions.enter().append("div").attr("class", "vzb-cl-option")
           .each(function() {
-            d3.select(this).append("div").attr("class", "vzb-cl-color-sample");
+            d3.select(this).append("div").attr("class", "vzb-cl-color-sample")
+              .on("click", _this._interact().clickToShow);
             d3.select(this).append("div").attr("class", "vzb-cl-color-legend");
           })
           .on("mouseover", _this._interact().mouseover)
           .on("mouseout", _this._interact().mouseout)
-          .on("click", _this._interact().click);
-
-        var labelsAvailable = !!(_this.frame||{}).label;
+          .on("click", _this._interact().clickToSelect);
 
         colorOptions.each(function(d, index) {
           d3.select(this).select(".vzb-cl-color-sample")
@@ -319,12 +302,9 @@ var ColorLegend = Component.extend({
             .style("border", "1px solid " + cScale(d[_this.colorlegendDim]));
           //Apply names to color legend entries if color is a property
           var label = _this.colorlegendMarker ? _this.frame.label[d[_this.colorlegendDim]] : null;
-          if(!label && label!==0) labelsAvailable = false;
+          if(!label && label!==0) label = d[_this.colorlegendDim];
           d3.select(this).select(".vzb-cl-color-legend").text(label);
         });
-
-        //switch to compact mode (remove labels) when we have no labels to show
-        colorOptions.classed("vzb-cl-compact", !labelsAvailable);
 
       } else {
 
@@ -338,10 +318,10 @@ var ColorLegend = Component.extend({
         this.minimapG.selectAll("path")
           .data(colorlegendKeys, function(d) {return d[_this.colorlegendDim]})
           .enter().append("path")
-          .style("opacity", OPACITY_REGULAR)
           .on("mouseover", _this._interact().mouseover)
           .on("mouseout", _this._interact().mouseout)
-          .on("click", _this._interact().click)
+          .on("click", _this._interact().clickToSelect)
+          .on("dblclick", _this._interact().clickToShow)
           .each(function(d){
             var shapeString = _this.frame.hook_geoshape[d[_this.colorlegendDim]].trim();
 
@@ -357,6 +337,7 @@ var ColorLegend = Component.extend({
             d3.select(this)
               .attr("d", shapeString)
               .style("fill", cScale(d[_this.colorlegendDim]))
+              .append("title").html(_this.frame.label[d[_this.colorlegendDim]]);
 
             tempdivEl.html("");
           })
@@ -379,12 +360,9 @@ var ColorLegend = Component.extend({
       mouseover: function(d, i) {
         //disable interaction if so stated in concept properties
         if(_this.colorModel.use === "indicator") return;
-
+        
         var view = d3.select(this);
         var target = d[colorlegendDim];
-        _this.listColorsEl.selectAll(".vzb-cl-option").style("opacity", OPACITY_DIM);
-        _this.minimapG.selectAll("path").style("opacity", OPACITY_DIM);
-        view.style("opacity", OPACITY_HIGHLIGHT);
 
         var highlight = _this.colorModel.getValidItems()
           //filter so that only countries of the correct target remain
@@ -396,18 +374,15 @@ var ColorLegend = Component.extend({
             return utils.clone(d, [KEY]);
           });
 
-        _this.model.entities.setHighlight(highlight);
+        _this.model.marker.setHighlight(highlight);
       },
 
       mouseout: function(d, i) {
         //disable interaction if so stated in concept properties
         if(_this.colorModel.use === "indicator") return;
-
-        _this.listColorsEl.selectAll(".vzb-cl-option").style("opacity", OPACITY_REGULAR);
-        _this.minimapG.selectAll("path").style("opacity", OPACITY_REGULAR);
-        _this.model.entities.clearHighlighted();
+        _this.model.marker.clearHighlighted();
       },
-      click: function(d, i) {
+      clickToChangeColor: function(d, i) {
         //disable interaction if so stated in concept properties
         if(!_this.colorModel.isUserSelectable()) return;
         var palette = _this.colorModel.getPalette();
@@ -422,6 +397,55 @@ var ColorLegend = Component.extend({
           })
           .fitToScreen([d3.event.pageX, d3.event.pageY])
           .show(true);
+      },
+      clickToShow: function(d, i) {
+        //disable interaction if so stated in concept properties
+        if(_this.colorModel.use === "indicator") return;
+
+        var view = d3.select(this);
+        var target = d[colorlegendDim];
+
+        if (_this.model.entities.show[colorlegendDim] && _this.model.entities.show[colorlegendDim]["$in"])
+          var oldShow = utils.clone(_this.model.entities.show[colorlegendDim]["$in"]);
+        else
+          var oldShow = [];
+
+        var entityIndex = oldShow.indexOf(d[colorlegendDim])
+        if (entityIndex !== -1) {
+          oldShow.splice(entityIndex,1);
+        } else {
+          oldShow.push(d[colorlegendDim]);
+        }
+
+        var show = {};
+        if (oldShow.length > 0) 
+          show[colorlegendDim] = { "$in": oldShow };
+
+        _this.model.entities.set({ show: show });
+
+      },
+      clickToSelect: function(d, i) {
+        //disable interaction if so stated in concept properties
+        if(_this.colorModel.use === "indicator") return;
+
+        var view = d3.select(this);
+        var target = d[colorlegendDim];
+
+        var select = _this.colorModel.getValidItems()
+          //filter so that only countries of the correct target remain
+          .filter(function(f) {
+            return f[_this.colorModel.which] == target
+          })
+          //fish out the "key" field, leave the rest behind
+          .map(function(d) {
+            return utils.clone(d, [KEY]);
+          });
+        
+        if(select.filter(function(d){return _this.model.marker.isSelected(d) }).length == select.length) {
+          _this.model.marker.clearSelected();
+        }else{
+          _this.model.marker.setSelect(select);
+        }
       }
     }
   },
@@ -433,24 +457,24 @@ var ColorLegend = Component.extend({
     this.colorPicker.resize(d3.select('.vzb-colorpicker-svg'));
   },
 
-  updateGroupsOpacity: function(value) {
+  /**
+   * Function updates the opacity of color legend elements
+   * @param   {Array} value = [] array of highlighted elements
+   */
+  updateGroupsOpacity: function(highlight = []) {
     var _this = this;
-    var selection = _this.canShowMap ? ".vzb-cl-minimap path" : ".vzb-cl-option";
+    
+    var clMarker = this.colorModel.getColorlegendMarker()||{};
+    var OPACITY_REGULAR = clMarker.opacityRegular || 0.8;
+    var OPACITY_DIM = clMarker.opacityHighlightDim || 0.5;
+    var OPACITY_HIGHLIGHT = 1;
+    
+    var selection = _this.canShowMap ? ".vzb-cl-minimap path" : ".vzb-cl-option .vzb-cl-color-sample";
 
-    if(arguments.length) {
-      this.listColorsEl.selectAll(".vzb-cl-option").style("opacity", OPACITY_DIM);
-      this.minimapG.selectAll("path").style("opacity", OPACITY_DIM);
-      this.listColorsEl.selectAll(selection).filter(function(d) {
-        return d[_this.colorlegendDim] == value;
-      }).each(function(d, i) {
-        var view = d3.select(this);
-        view.style("opacity", OPACITY_HIGHLIGHT);
-      });
-    } else {
-      this.listColorsEl.selectAll(".vzb-cl-option").style("opacity", OPACITY_HIGHLIGHT);
-      this.minimapG.selectAll("path").style("opacity", OPACITY_REGULAR);
-    }
-
+    this.listColorsEl.selectAll(selection).style("opacity", function(d){
+      if(!highlight.length) return OPACITY_REGULAR;
+      return highlight.indexOf(d[_this.colorlegendDim]) > -1 ? OPACITY_HIGHLIGHT : OPACITY_DIM;
+    });
   }
 
 });

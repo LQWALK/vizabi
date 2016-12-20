@@ -11,6 +11,7 @@ import timeslider from 'components/timeslider/timeslider';
 import dialogs from 'components/dialogs/dialogs';
 import buttonlist from 'components/buttonlist/buttonlist';
 import treemenu from 'components/treemenu/treemenu';
+import datawarning from 'components/datawarning/datawarning';
 import datanotes from 'components/datanotes/datanotes';
 
 
@@ -28,7 +29,7 @@ var LineChart = Tool.extend('LineChart', {
       this.components = [{
         component: LCComponent,
         placeholder: '.vzb-tool-viz',
-        model: ["state.time", "state.entities", "state.marker", "language"] //pass models to component
+        model: ["state.time", "state.entities", "state.marker", "locale", "ui"] //pass models to component
       }, {
         component: timeslider,
         placeholder: '.vzb-tool-timeslider',
@@ -37,19 +38,23 @@ var LineChart = Tool.extend('LineChart', {
       }, {
         component: dialogs,
         placeholder: '.vzb-tool-dialogs',
-        model: ['state', 'ui', 'language']
+        model: ['state', 'ui', 'locale']
       }, {
         component: buttonlist,
         placeholder: '.vzb-tool-buttonlist',
-        model: ['state', 'ui', 'language']
+        model: ['state', 'ui', 'locale']
       }, {
         component: treemenu,
         placeholder: '.vzb-tool-treemenu',
-        model: ['state.marker', 'state.marker_tags', 'state.time', 'language']
+        model: ['state.marker', 'state.marker_tags', 'state.time', 'locale']
+      }, {
+        component: datawarning,
+        placeholder: '.vzb-tool-datawarning',
+        model: ['locale']
       }, {
         component: datanotes,
         placeholder: '.vzb-tool-datanotes',
-        model: ['state.marker', 'language']
+        model: ['state.marker', 'locale']
       }];
 
       this._super(placeholder, external_model);
@@ -58,8 +63,12 @@ var LineChart = Tool.extend('LineChart', {
     default_model: {
     state: {
       time: {},
+      marker: { 
+        axis_x: {allow: {scales: ["time"]}},
+        axis_y: {allow: {scales: ["linear", "log"]}}
+      }
     },
-    language: { },
+    locale: { },
     "ui": {
       "chart": {
         "labels": {
@@ -73,6 +82,10 @@ var LineChart = Tool.extend('LineChart', {
           "higlightValueY": true,
           "showTooltip": false
         }
+      },
+      datawarning: {
+        doubtDomain: [],
+        doubtRange: []
       },
       "presentation": false
     }

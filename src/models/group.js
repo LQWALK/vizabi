@@ -9,11 +9,14 @@ var GroupModel = Hook.extend({
   /**
    * Default values for this model
    */
-  _defaults: {
-    use: null,
-    which: null,
-    merge: false,
-    manualSorting: null
+  getClassDefaults: function() { 
+    var defaults = {
+      use: null,
+      which: null,
+      merge: false,
+      manualSorting: null
+    };
+    return utils.deepExtend(this._super(), defaults)
   },
 
   /**
@@ -40,12 +43,7 @@ var GroupModel = Hook.extend({
       utils.warn("group model: use must be 'property'. Resetting...")
       this.use = "property";
     }
-  },
-
-  /**
-   * There must be no scale
-   */
-  buildScale: function() {}
+  }
 
 });
 

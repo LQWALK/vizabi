@@ -35,8 +35,8 @@ var IndPicker = Component.extend({
             name: "marker",
             type: "model"
         }, {
-            name: "language",
-            type: "language"
+            name: "locale",
+            type: "locale"
         }];
 
         this.markerID = config.markerID;
@@ -44,7 +44,7 @@ var IndPicker = Component.extend({
         if(!config.markerID) utils.warn("indicatorpicker.js complains on 'markerID' property: " + config.markerID);
 
         this.model_binds = {
-            "translate:language": function(evt) {
+            "translate:locale": function(evt) {
                 _this.updateView();
             },
             "ready": function(evt) {
@@ -59,17 +59,19 @@ var IndPicker = Component.extend({
         }
 
         if(this.showHoverValues) {
-            this.model_binds["change:entities.highlight"] = function(evt, values) {
+            this.model_binds["change:marker.highlight"] = function(evt, values) {
                 var use = _this.model.marker[_this.markerID].use;
                 if(!_this.showHoverValues || use == "constant") return;
-                var _highlightedEntity = _this.model.entities.getHighlighted();
+                var _highlightedEntity = _this.model.marker.getHighlighted();
                 if(_highlightedEntity.length > 1) return;
 
                 if (_highlightedEntity.length) {
                     _this.model.marker.getFrame(_this.model.time.value, function(frame) {
                         if(_this._highlighted || !frame) return;
 
-                        var _highlightedEntity = _this.model.entities.getHighlighted();
+                        // should be replaced by dimension of entity set for this hook (if use == property)
+                        var dimension = _this.model.entities.getDimension();
+                        var _highlightedEntity = _this.model.marker.getHighlighted(dimension);
                         if(_highlightedEntity.length) {
                             _this._highlightedValue = frame[_this.markerID][_highlightedEntity[0]];
                             _this._highlighted = (!_this._highlightedValue && _this._highlightedValue !== 0) || use !== "property";
@@ -152,7 +154,7 @@ var IndPicker = Component.extend({
         if(!this._readyOnce) return;
 
         var _this = this;
-        var translator = this.model.language.getTFunction();
+        var translator = this.model.locale.getTFunction();
 
         var which = this.model.marker[this.markerID].which;
         var type = this.model.marker[this.markerID]._type;

@@ -1,5 +1,4 @@
 import * as utils from 'base/utils';
-import Promise from 'bluebird';
 import Model from 'base/model';
 
 /*!
@@ -8,6 +7,251 @@ import Model from 'base/model';
 
 var Marker = Model.extend({
 
+  getClassDefaults: function() { 
+    var defaults = {
+      select: [],
+      highlight: [],
+      opacityHighlightDim: 0.1,
+      opacitySelectDim: 0.3,
+      opacityRegular: 1,
+      allowSelectMultiple: true
+    };
+    return utils.deepExtend(this._super(), defaults)
+  },
+
+  init: function(name, value, parent, binds, persistent) {
+    this._visible = [];
+
+
+    this._super(name, value, parent, binds, persistent);
+    this.on('ready', this.checkTimeLimits.bind(this));
+  },
+  
+  setDataSourceForAllSubhooks: function(data){
+    var obj = {};
+    this.getSubhooks().forEach((hook) => { obj[hook._name] = {data: data} });
+    this.set(obj, null, false);
+  },
+
+
+  /**
+   * Validates the model
+   */
+  validate: function() {
+    var _this = this;
+    var dimension = this.getDimension();
+    var visible_array = this._visible.map(function(d) {
+      return d[dimension]
+    });
+
+    if(visible_array.length) {
+      this.select = this.select.filter(function(f) {
+        return visible_array.indexOf(f[dimension]) !== -1;
+      });
+      this.setHighlight(this.highlight.filter(function(f) {
+        return visible_array.indexOf(f[dimension]) !== -1;
+      }));
+    }
+  },
+  
+  /**
+   * Sets the visible entities
+   * @param {Array} arr
+   */
+  setVisible: function(arr) {
+    this._visible = arr;
+  },
+
+  /**
+   * Gets the visible entities
+   * @returns {Array} visible
+   */
+  getVisible: function(arr) {
+    return this._visible;
+  },
+
+  /**
+   * Gets the selected items
+   * @returns {Array} Array of unique selected values
+   */
+  getSelected: function(dim) {
+    if (dim)
+      return this.select.map(
+        d => d[dim]
+      );
+    else
+      return this.select;
+  },
+
+  selectMarker: function(d) {
+    var _this = this;
+    var value = this._createValue(d);
+    if(this.isSelected(d)) {
+      this.select = this.select.filter(function(d) {
+        return JSON.stringify(_this._createValue(d)) !== JSON.stringify(value);
+      });
+    } else {
+      this.select = (this.allowSelectMultiple) ? this.select.concat(value) : [value];
+    }
+  },
+
+  /**
+   * Select all entities
+   */
+  selectAll: function(timeDim, timeFormatter) {
+    if(!this.allowSelectMultiple) return;
+
+    var added,
+      dimension = this.getDimension();
+
+    var select = this._visible.map(function(d) {
+      added = {};
+      added[dimension] = d[dimension];
+      return added;
+    });
+
+    this.select = select;
+  },
+
+  isSelected: function(d) {
+    var _this = this;
+    var value = this._createValue(d);
+
+    return this.select
+      .map(function(d) {
+        return JSON.stringify(_this._createValue(d)) === JSON.stringify(value);
+      })
+      .indexOf(true) !== -1;
+  },
+
+  _createValue: function(d) {
+    var dims = this._getAllDimensions({ exceptType: 'time' });
+    return dims.reduce(function(value, key) {
+      value[key] = d[key];
+      return value;
+    }, {});
+  },
+
+
+  /**
+   * Gets the highlighted items
+   * @returns {Array} Array of unique highlighted values
+   */
+  getHighlighted: function(dim) {
+    if (dim)
+      return this.highlight.map(
+        d => d[dim]
+      );
+    else
+      return this.highlight;
+  },
+
+  setHighlight: function(arg) {
+    if (!utils.isArray(arg)) {
+      this.setHighlight([].concat(arg));
+      return;
+    }
+    this.getModelObject('highlight').set(arg, false, false); // highlights are always non persistent changes
+  },
+  
+  setSelect: function(arg) {
+    if (!utils.isArray(arg)) {
+      this.setSelect([].concat(arg));
+      return;
+    }
+    this.getModelObject('select').set(arg);
+  },
+
+  //TODO: join the following 3 methods with the previous 3
+
+  /**
+   * Highlights an entity from the set
+   */
+  highlightMarker: function(d) {
+    var value = this._createValue(d);
+    if(!this.isHighlighted(d)) {
+      this.setHighlight(this.highlight.concat(value));
+    }
+  },
+
+  /**
+   * Unhighlights an entity from the set
+   */
+  unhighlightEntity: function(d) {
+    var value = this._createValue(d);
+    if(this.isHighlighted(d)) {
+      this.setHighlight(this.highlight.filter(function(d) {
+        return d[dimension] !== value;
+      }));
+    }
+  },
+
+  /**
+   * Checks whether an entity is highlighted from the set
+   * @returns {Boolean} whether the item is highlighted or not
+   */
+  isHighlighted: function(d) {
+    var _this = this;
+    var value = this._createValue(d);
+    return this.highlight
+      .map(function(d) {
+        return JSON.stringify(_this._createValue(d)) === JSON.stringify(value);
+      })
+      .indexOf(true) !== -1;
+  },
+
+  /**
+   * Clears selection of items
+   */
+  clearHighlighted: function() {
+    this.setHighlight([]);
+  },
+  clearSelected: function() {
+    this.select = [];
+  },
+
+  setLabelOffset: function(d, xy) {
+    if(xy[0]===0 && xy[1]===1) return;
+
+    this.select
+      .find(selectedMarker => utils.comparePlainObjects(selectedMarker, d))
+      .labelOffset = [Math.round(xy[0]*1000)/1000, Math.round(xy[1]*1000)/1000];
+
+    //force the model to trigger events even if value is the same
+    this.set("select", this.select, true);
+  },
+
+  checkTimeLimits: function() {
+    
+    var time = this._parent.time;
+    
+    if(!time || time.splash) return;
+    
+    var tLimits = this.getTimeLimits();
+
+    if(!tLimits) return;
+    if(!utils.isDate(tLimits.min) || !utils.isDate(tLimits.max)) 
+        return utils.warn("checkTimeLimits(): min-max look wrong: " + tLimits.min + " " + tLimits.max + ". Expecting Date objects. Ensure that time is properly parsed in the data from reader");
+
+    // change start and end (but keep startOrigin and endOrigin for furhter requests)
+    var newTime = {}
+    if(time.start - tLimits.min != 0) newTime['start'] = d3.max([tLimits.min, time.parseToUnit(time.startOrigin)]);
+    if(time.end - tLimits.max != 0) newTime['end'] = d3.min([tLimits.max, time.parseToUnit(time.endOrigin)]);
+    
+    time.set(newTime, false, false);
+    
+    if (newTime.start || newTime.end) {
+      utils.forEach(this.getSubhooks(), function(hook) {
+        if (hook.which == "time") {     
+          hook.buildScale();     
+        }
+      });
+    }
+    
+    //force time validation because time.value might now fall outside of start-end
+    time.validate(); 
+  },
+
   /**
    * Gets the narrowest limits of the subhooks with respect to the provided data column
    * @param {String} attr parameter (data column)
@@ -15,30 +259,20 @@ var Marker = Model.extend({
    * this function is only needed to route the "time" to some indicator,
    * to adjust time start and end to the max and min time available in data
    */
-  getTimeLimits: function(attr) {
+  getTimeLimits: function() {
       var _this = this;
       var time = this._parent.time;
       var min, max, minArray = [], maxArray = [], items = {};
       if (!this.cachedTimeLimits) this.cachedTimeLimits = {};
       utils.forEach(this.getSubhooks(), function(hook) {
         if(hook.use !== "indicator" || !hook._important) return;
-        var hookConceptprops = hook.getConceptprops();
-        if(!hookConceptprops) return utils.warn(hook._name + ": " + hook.which + " is not found among concept properties. \
-            Check that you read the correct file or server instance... \
-            Check that the pointer 'which' of the hook is correct too");
 
-        var availability = hookConceptprops.availability;
-        var availabilityForHook = _this.cachedTimeLimits[hook._dataId + hook.which];
+        var cachedLimits = _this.cachedTimeLimits[hook._dataId + hook.which];
 
-        if (availabilityForHook){
+        if (cachedLimits){
             //if already calculated the limits then no ned to do it again
-            min = availabilityForHook.min;
-            max = availabilityForHook.max;
-        }else if (availability){
-            //if date limits are supplied by the concept properties then use them
-            min = time.timeFormat.parse(availability[0]+"");
-            var timeEnd = time._defaults.end || availability[1];
-            max = time.timeFormat.parse(Math.min(timeEnd, availability[1])+"");
+            min = cachedLimits.min;
+            max = cachedLimits.max;
         }else{
             //otherwise calculate own date limits (a costly operation)
             items = hook.getValidItems().map(function(m){return m[time.getDimension()];});
@@ -58,7 +292,9 @@ var Marker = Model.extend({
           resultMin = d3.min(minArray);
           resultMax = d3.max(maxArray);
       }
-      return {min: resultMin, max: resultMax}
+    
+      //return false for the case when neither of hooks was an "indicator" or "important"
+      return !min && !max? false : {min: resultMin, max: resultMax}
   },
 
 
@@ -91,7 +327,7 @@ var Marker = Model.extend({
 
             // Remove the keys from it that are not in this hook
             if(hook._important) resultKeys = resultKeys.filter(function(f) {
-              return _this._parent.time.splash !== false || keys.indexOf(f) > -1 && keysNoDP.indexOf(f) == -1;
+              return keys.indexOf(f) > -1 && keysNoDP.indexOf(f) == -1;
             })
         });
         return resultKeys.map(function(d){var r = {}; r[KEY] = d; return r; });
@@ -109,7 +345,7 @@ var Marker = Model.extend({
     var dataLoading = false;
     utils.forEach(this._dataCube, function(hook, name) {
       if (hook._loadCall) dataLoading = true;
-      cachePath = cachePath + "_" +  hook._dataId;
+      cachePath = cachePath + "_" +  hook._dataId + hook.which;
     });
     if (dataLoading) {
       return null;
@@ -128,11 +364,6 @@ var Marker = Model.extend({
       models.push(_this.getClosestModel(name));
     });
 
-    var optsStr = JSON.stringify(opts);
-    if(optsStr in this._spaceDims) {
-      return this._spaceDims[optsStr];
-    }
-
     opts = opts || {};
     var dims = [];
     var dim;
@@ -148,8 +379,6 @@ var Marker = Model.extend({
         dims.push(dim);
       }
     });
-
-    this._spaceDims[optsStr] = dims;
 
     return dims;
   },
@@ -569,17 +798,6 @@ var Marker = Model.extend({
     return response;
   },
 
-  /**
-   * Gets the concept properties of all hooks
-   * @returns {Object} concept properties
-   */
-  getConceptprops: function() {
-    // temporary hack to get conceptprops from hook. Fix should be that no one tries to get it from marker in the first place.
-    var keys = Object.keys(this._data);
-    var index = (keys[0] !== 'space') ? keys[0] : keys[1];
-    return this._data[index].dataSource.getConceptprops();
-  },
-
   getEntityLimits: function(entity) {
     var _this = this;
     var timePoints = this._parent.time.getAllSteps();
@@ -609,7 +827,7 @@ var Marker = Model.extend({
         }
       });
     };
-
+    var promises = [];
     promises.push(new Promise(function(resolve, reject) {
 
       //find startSelected time
@@ -640,9 +858,8 @@ var Marker = Model.extend({
 
     }));
 
-
     return Promise.all(promises).then(function() {
-      resolve({"min": selectedEdgeTimes[0],"max": selectedEdgeTimes[1]});
+      return ({"min": selectedEdgeTimes[0],"max": selectedEdgeTimes[1]});
     });
   },
 

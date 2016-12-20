@@ -10,8 +10,6 @@ var VIZABI_MODEL = {
     },
     "entities": {
       "dim": "municipality",
-      "opacitySelectDim": .3,
-      "opacityRegular": 1,
       "show": {
         "is--municipality": true
       },
@@ -24,6 +22,8 @@ var VIZABI_MODEL = {
     },
     "marker": {
       "space": ["entities", "time"],
+      "opacitySelectDim": 0.3,
+      "opacityRegular": 1,
       "size": {
         "use": "constant",
         "which": "_default",
@@ -49,8 +49,6 @@ var VIZABI_MODEL = {
     },
     "marker_colorlegend": {
       "space": ["entities_colorlegend"],
-      "type": "geometry",
-      "shape": "svg",
       "label": {
         "use": "property",
         "which": "municipality.name"
@@ -69,6 +67,24 @@ var VIZABI_MODEL = {
     "datawarning": {
       "doubtDomain": [1800, 1950, 2015],
       "doubtRange": [1.0, 0.3, 0.2]
+    },
+    "buttons": ['colors', 'find', 'size', 'lock', 'moreoptions', 'fullscreen'],
+    "dialogs": {
+      'popup': ['colors', 'find', 'size', 'moreoptions'], 
+      'sidebar': ['colors', 'find', 'size'], 
+      'moreoptions': ['size', 'colors', 'about']
     }
+  },
+  "data": {
+    "reader": "csv",
+    "path": "data/zaf/waffles/ddf--datapoints--piped_water_percentage--electricity_lighting_percentage--by--year--municipality.csv",
+    "splash": false
   }
+};
+
+var EXT_RESOURCES = {
+  "host": LOCAL_URL,
+  "preloadPath": "data/zaf/",
+  "dataPath": "data/zaf/waffles/",
+  "shapePath": "data/zaf/municipalities.json"
 };

@@ -38,8 +38,8 @@ var ButtonList = Component.extend({
       name: "ui",
       type: "ui"
     }, {
-      name: "language",
-      type: "language"
+      name: "locale",
+      type: "locale"
     }];
 
     this._available_buttons = {
@@ -136,7 +136,7 @@ var ButtonList = Component.extend({
     this._active_comp = false;
 
     this.model_binds = {
-      "change:state.entities.select": function(evt) {
+      "change:state.marker.select": function(evt) {
         if(!_this._readyOnce) return;
 
         _this.setBubbleTrails();
@@ -145,10 +145,10 @@ var ButtonList = Component.extend({
 
 
         //scroll button list to end if bottons appeared or disappeared
-        // if(_this.entitiesSelected_1 !== (_this.model.state.entities.select.length > 0)) {
+        // if(_this.entitiesSelected_1 !== (_this.model.state.marker.select.length > 0)) {
         //   _this.scrollToEnd();
         // }
-        // _this.entitiesSelected_1 = _this.model.state.entities.select.length > 0;
+        // _this.entitiesSelected_1 = _this.model.state.marker.select.length > 0;
       },
       "change:ui.chart": function(evt, path) {
         if(path.indexOf("lockActive") > -1) {
@@ -157,10 +157,9 @@ var ButtonList = Component.extend({
       }
     }      
 
-    // builds model
-    this._super(config, context);
-        
-    this.model.ui.buttons.forEach(function(buttonId) {
+    // config.ui is same as this.model.ui here but this.model.ui is not yet available because constructor hasn't been called. 
+    // can't call constructor earlier because this.model_binds needs to be complete before calling constructor
+    config.ui.buttons.forEach(function(buttonId) {
       var button = _this._available_buttons[buttonId];
       if(button && button.statebind) {
         _this.model_binds['change:' + button.statebind] = function(evt) {
@@ -169,6 +168,9 @@ var ButtonList = Component.extend({
       }
     });    
 
+    // builds model
+    this._super(config, context);
+        
     this.validatePopupButtons(this.model.ui.buttons, this.model.ui.dialogs);
 
   },
@@ -426,10 +428,10 @@ var ButtonList = Component.extend({
     var parent = d3.select(".vzb-tool");
 
     if(parent.classed("vzb-portrait") && parent.classed("vzb-small")) {
-      if(this.model.state.entities.select.length > 0) target = this.element[0][0].scrollWidth
+      if(this.model.state.marker.select.length > 0) target = this.element[0][0].scrollWidth
       this.element[0][0].scrollLeft = target;
     } else {
-      if(this.model.state.entities.select.length > 0) target = this.element[0][0].scrollHeight
+      if(this.model.state.marker.select.length > 0) target = this.element[0][0].scrollHeight
       this.element[0][0].scrollTop = target;
     }
   },
@@ -469,12 +471,12 @@ var ButtonList = Component.extend({
     if(!btn.node()) return utils.warn("setBubbleTrails: no button '" +id+ "' found in DOM. doing nothing");
 
     btn.classed(class_active_locked, trails);
-    btn.classed(class_hidden, this.model.state.entities.select.length == 0);
+    btn.classed(class_hidden, this.model.state.marker.select.length == 0);
   },
   toggleBubbleLock: function(id) {
     var active = (this.model.ui.chart||{}).lockActive;
 
-    if(this.model.state.entities.select.length == 0 && !active) return;
+    if(this.model.state.marker.select.length == 0 && !active) return;
 
     var locked = this.model.ui.chart.lockNonSelected;
     var time = this.model.state.time;
@@ -488,7 +490,7 @@ var ButtonList = Component.extend({
     var active = (this.model.ui.chart||{}).lockActive;
     if(!locked && locked !== 0) return;
 
-    if(locked !== 0 && this.model.state.entities.select.length === 0 && !active) {
+    if(locked !== 0 && this.model.state.marker.select.length === 0 && !active) {
        locked = this.model.ui.chart.lockNonSelected = 0;
     }
 
@@ -496,11 +498,11 @@ var ButtonList = Component.extend({
     var btn = this.element.selectAll(".vzb-buttonlist-btn[data-btn='" + id + "']");
     if(!btn.node()) return utils.warn("setBubbleLock: no button '" +id+ "' found in DOM. doing nothing");
       
-    var translator = this.model.language.getTFunction();
+    var translator = this.model.locale.getTFunction();
 
-    btn.classed(class_unavailable, this.model.state.entities.select.length == 0 && !active);
+    btn.classed(class_unavailable, this.model.state.marker.select.length == 0 && !active);
     if (typeof active == "undefined") {
-      btn.classed(class_hidden, this.model.state.entities.select.length == 0);
+      btn.classed(class_hidden, this.model.state.marker.select.length == 0);
     } else {
       btn.classed(class_hidden, !active);
     }
@@ -519,7 +521,7 @@ var ButtonList = Component.extend({
   setInpercent: function() {
     if (typeof((this.model.ui.chart||{}).inpercent) == "undefined") return;
     var id = 'inpercent';
-    var translator = this.model.language.getTFunction();
+    var translator = this.model.locale.getTFunction();
     var btn = this.element.selectAll(".vzb-buttonlist-btn[data-btn='" + id + "']");
 
     btn.classed(class_active_locked, this.model.ui.chart.inpercent);
@@ -530,7 +532,7 @@ var ButtonList = Component.extend({
   },
   setPresentationMode: function() {
     var id = 'presentation';
-    var translator = this.model.language.getTFunction();
+    var translator = this.model.locale.getTFunction();
     var btn = this.element.selectAll(".vzb-buttonlist-btn[data-btn='" + id + "']");
 
     btn.classed(class_active_locked, this.model.ui.presentation);
@@ -564,7 +566,7 @@ var ButtonList = Component.extend({
     }
 
     this.model.ui.fullscreen = fs;
-    var translator = this.model.language.getTFunction();
+    var translator = this.model.locale.getTFunction();
     btn.classed(class_active_locked, fs);
 
     btn.select(".vzb-buttonlist-btn-icon").html(iconset[fs ? "unexpand" : "expand"]);
@@ -577,7 +579,7 @@ var ButtonList = Component.extend({
     //restore body overflow
     document.body.style.overflow = body_overflow;
 
-    this.root.layout.resizeHandler();
+    this.root.ui.resizeHandler();
 
     //force window resize event
     // utils.defer(function() {

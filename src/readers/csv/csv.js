@@ -8,12 +8,6 @@ const CSVReader = Reader.extend({
   QUERY_FROM_CONCEPTS: 'concepts',
   QUERY_FROM_DATAPOINTS: 'datapoints',
   QUERY_FROM_ENTITIES: 'entities',
-  DATA_QUERIES() {
-    return [
-      this.QUERY_FROM_DATAPOINTS,
-      this.QUERY_FROM_ENTITIES
-    ];
-  },
 
   CONDITION_CALLBACKS: {
     $gt: (configValue, rowValue) => rowValue > configValue,
@@ -31,7 +25,7 @@ const CSVReader = Reader.extend({
     this._name = 'csv';
     this._data = [];
     this._basepath = readerInfo.path;
-    this._parsers = readerInfo.parsers;
+    this.d3reader = readerInfo.delimiter? d3.dsv(readerInfo.delimiter, "text/plain") : d3.csv;
 
     if (!this._basepath) {
       utils.error('Missing base path for csv reader');
@@ -41,9 +35,12 @@ const CSVReader = Reader.extend({
   /**
    * Reads from source
    * @param {Object} query to be performed
-   * @returns a promise that will be resolved when data is read
+   * @param parsers
+   * @returns {Promise} a promise that will be resolved when data is read
    */
-  read(query) {
+  read(query, parsers = {}) {
+    query = this._normalizeQuery(utils.deepClone(query), parsers);
+
     const {
       select,
       from,
@@ -53,59 +50,136 @@ const CSVReader = Reader.extend({
     const [orderBy] = order_by;
 
     return this.load()
-      .then(data => {
+      .then((data) => {
+        data = data.map(this._mapRows(parsers));
+
         switch (true) {
           case from === this.QUERY_FROM_CONCEPTS:
-            this._data = this._getConcepts(data[0]);
-            break;
+            return this._getConcepts(data[0]);
 
-          case this.DATA_QUERIES().includes(from) && select.key.length > 0:
-            this._data = data
-              .reduce(this._reduceData(query), [])
+          case this._isDataQuery(from) && select.key.length > 0:
+            return data
+              .reduce(this._applyQuery(query), [])
               .sort((prev, next) => prev[orderBy] - next[orderBy]);
-            break;
 
           default:
-            this._data = [];
+            return [];
+        }
+      })
+      .catch(utils.error);
+  },
+  
+  
+  /**
+   * This function returns info about the dataset
+   * in case of CSV reader it's just the name of the file
+   * @returns {object} object of info about the dataset
+   */
+  getDatasetInfo: function(){
+    return {name: this._basepath.split("/").pop()};
+  },
+
+  load() {
+    const { _basepath: path } = this;
+
+    return new Promise((resolve, reject) => {
+      const data = cached[path];
+
+      data ?
+        resolve(data) :
+        this.d3reader(path)
+          .get((error, result) => {
+            if (!result) {
+              return reject(`No permissions or empty file: ${path}. ${error}`);
+            }
+
+            if (error) {
+              return reject(`Error happened while loading csv file: ${path}. ${error}`);
+            }
+
+            cached[path] = result;
+            resolve(result);
+          });
+    });
+  },
+
+  _normalizeQuery(_query, parsers) {
+    const query = Object.assign({}, _query);
+    const { where, join } = query;
+
+    if (where.$and) {
+      where.$and = where.$and.reduce((whereResult, condition) => {
+        Object.keys(condition).forEach(rowKey => {
+          const conditionValue = condition[rowKey];
+
+          if (typeof conditionValue === 'string' && conditionValue.startsWith('$')) {
+            const joinWhere = join[conditionValue].where;
+
+            Object.keys(joinWhere)
+              .forEach(joinRowKey => {
+                const value = joinWhere[joinRowKey];
+                const parser = parsers[joinRowKey];
+
+                whereResult[joinRowKey] = parser ?
+                  typeof value === 'object' ?
+                    Object.keys(value).reduce((callbackConditions, callbackKey) => {
+                      callbackConditions[callbackKey] = parser(value[callbackKey]);
+                      return callbackConditions;
+                    }, {}) :
+                    parser(value)
+                  : value;
+              });
+          } else {
+            const parser = parsers[rowKey];
+            whereResult[rowKey] = parser ? parser(conditionValue) : conditionValue;
+          }
+        });
+
+        return whereResult;
+      }, {});
+    }
+
+    return query;
+  },
+
+  _isDataQuery(from) {
+    return [
+      this.QUERY_FROM_DATAPOINTS,
+      this.QUERY_FROM_ENTITIES
+    ].includes(from);
+  },
+
+  _mapRows(parsers) {
+    return row => {
+      return Object.keys(row).reduce((result, key) => {
+        const value = row[key];
+        const parser = parsers[key];
+
+        if (parser) {
+          result[key] = parser(value);
+        } else {
+          const numeric = parseFloat(value);
+          result[key] = !isNaN(numeric) && isFinite(numeric) ? numeric : value;
         }
 
-        this._data = utils.mapRows(this._data, this._parsers);
-      })
-      .catch(utils.warn);
-  },
-
-  load(path = this._basepath) {
-    return cached[path] ?
-      Promise.resolve(cached[path]) :
-      new Promise((resolve, reject) => {
-        d3.csv(path, (error, result) => {
-          if (!result) {
-            return reject(`No permissions or empty file: ${path}. ${error}`);
-          }
-
-          if (error) {
-            return reject(`Error happened while loading csv file: ${path}. ${error}`);
-          }
-
-          resolve(cached[path] = result);
-        });
-      });
-  },
-
-  /**
-   * Gets the data
-   * @returns all data
-   */
-  getData() {
-    return this._data;
+        return result;
+      }, {});
+    };
   },
 
   _getConcepts(firstRow) {
     return Object.keys(firstRow)
-      .map(concept => ({ concept }));
+      .map((concept, index) => Object.assign(
+        { concept },
+        !index ?
+          { concept_type: 'entity_domain' } :
+          concept === 'time' ?
+            { concept_type: 'time' } :
+            {}
+      ));
   },
 
-  _reduceData(query) {
+  _applyQuery(query) {
     const {
       select,
       from
@@ -143,36 +217,22 @@ const CSVReader = Reader.extend({
   _isSuitableRow(query, row) {
     const { where } = query;
 
-    return !where.$and || where.$and.every(binding =>
-        Object.keys(binding).every(conditionKey =>
-          this._checkCondition(query, row, binding[conditionKey], conditionKey)
-        )
-      );
-  },
+    return !where.$and ||
+      Object.keys(where.$and).every(conditionKey => {
+        const condition = where.$and[conditionKey];
+        const rowValue = row[conditionKey];
 
-  _checkCondition(query, row, bindingKey, conditionKey) {
-    const { join } = query;
-
-    switch (true) {
-      case typeof bindingKey === 'string' && bindingKey.startsWith('$'):
-        const { where: conditions } = join[bindingKey];
-
-        return Object.keys(conditions).every(rowKey => {
-          return this._checkCondition(query, row, conditions[rowKey], rowKey);
-        });
-
-      case typeof bindingKey === 'object':
-        return this._checkConditionCallbacks(bindingKey, row, conditionKey);
-
-      default:
-        return row[conditionKey] === bindingKey;
-    }
-  },
-
-  _checkConditionCallbacks(conditions, row, rowKey) {
-    return Object.keys(conditions).every(conditionKey =>
-      this.CONDITION_CALLBACKS[conditionKey](conditions[conditionKey], row[rowKey])
-    );
+        return typeof condition !== 'object' ?
+          (rowValue === condition
+            // if the column is missing, then don't apply filter
+            || rowValue === undefined
+            || condition === true && utils.isString(rowValue) && rowValue.toLowerCase().trim() === 'true'
+            || condition === false && utils.isString(rowValue) && rowValue.toLowerCase().trim() === 'false'
+          ) :
+          Object.keys(condition).every(callbackKey =>
+            this.CONDITION_CALLBACKS[callbackKey](condition[callbackKey], rowValue)
+          );
+      });
   }
 
 });

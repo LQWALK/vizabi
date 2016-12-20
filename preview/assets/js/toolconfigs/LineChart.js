@@ -4,15 +4,16 @@ var VIZABI_MODEL = {
       "startOrigin": "1800",
       "endOrigin": "2015",
       "value": "2015",
+      "dim": "time"
     },
     "entities": {
       "dim": "geo",
       "show": {
-        "country": { "$in": ["usa", "swe", "chn"] }
+        "geo": { "$in": ["usa", "rus", "chn", "nga"] }
       }
     },
-    "entities_colorlegend": {
-      "dim": "geo"
+    "entities_colorlegend": { 
+      "dim": "world_4region"
     },
     "marker": {
       "space": ["entities", "time"],
@@ -23,21 +24,12 @@ var VIZABI_MODEL = {
       "axis_y": {
         "use": "indicator",
         "which": "income_per_person_gdppercapita_ppp_inflation_adjusted",
-        "scaleType": "log",
-        "domainMin": 300,
-        "domainMax": 128000,
-        "allow": {
-          "scales": ["linear", "log"]
-        }
-
+        "scaleType": "log"
       },
       "axis_x": {
         "use": "indicator",
         "which": "time",
-        "scaleType": "time",
-        "allow": {
-          "scales": ["time"]
-        }
+        "scaleType": "time"
       },
       "color": {
         "use": "property",
@@ -45,7 +37,7 @@ var VIZABI_MODEL = {
         "allow": {
           "scales": ["ordinal"]
         },
-        "colorlegend": "marker_colorlegend"
+        "syncModels": ["marker_colorlegend"]
       }
     },
     "entities_allpossible": {
@@ -66,8 +58,8 @@ var VIZABI_MODEL = {
     },
     "marker_colorlegend": {
       "space": ["entities_colorlegend"],
-      "type": "geometry",
-      "shape": "svg",
+      "opacityRegular": 0.8,
+      "opacityHighlightDim": 0.3, 
       "label": {
         "use": "property",
         "which": "name"
@@ -92,5 +84,24 @@ var VIZABI_MODEL = {
         "which": "parent"
       }
     }
+  },
+  "ui": {
+    "datawarning": {
+      "doubtDomain": [1800, 1950, 2015],
+      "doubtRange": [1.0, 0.3, 0.2]
+    },
+    "buttons": ['colors', 'find', 'show', 'moreoptions', 'fullscreen', 'presentation'],
+    "dialogs": {
+      'popup': ['colors', 'find', 'show', 'moreoptions'], 
+      'sidebar': ['colors', 'show'], 
+      'moreoptions': ['opacity', 'speed', 'axes', 'colors', 'presentation', 'about']
+    }
+  },
+  "data": {
+    "reader": "waffle",
+    //"reader": "ddf",
+    "splash": false,
+    "path": "https://waffle-server-dev.gapminderdev.org/api/ddf/"
+    //"path": "data/systema_globalis"
   }
 };

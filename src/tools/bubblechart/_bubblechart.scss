@@ -91,6 +91,13 @@
 
       .vzb-bc-labels {
         @extend %vzb-chart-tooltip;
+        @include rtl {
+          text {
+            direction: rtl;
+            text-anchor: start;
+            unicode-bidi: embed;
+          }
+        }
         .vzb-label-fill {
           pointer-events: visible;
         }
@@ -155,6 +162,13 @@
       }
       .vzb-bc-tooltip {
         @extend %vzb-chart-tooltip;
+        @include rtl {
+          text {
+            direction: rtl;
+            text-anchor: start;
+            unicode-bidi: embed;
+          }
+        }
         .vzb-tooltip-glow {
           stroke-width: 8px;
           fill: none;
@@ -179,11 +193,24 @@
       .vzb-bc-axis-x-title,
       .vzb-bc-axis-y-title {
         @extend %vzb-chart-axis-title;
+        @include rtl {
+          text {
+            direction: rtl;
+            unicode-bidi: embed;
+          }
+        }
       }
 
       .vzb-bc-axis-s-title,
       .vzb-bc-axis-c-title {
         @extend %vzb-chart-axis-title;
+        @include rtl {
+          text {
+            direction: rtl;
+            text-anchor: start;
+            unicode-bidi: embed;
+          }
+        }
         opacity: .3;
       }
 
@@ -194,8 +221,8 @@
 
       .vzb-bc-projection-x,
       .vzb-bc-projection-y {
-        stroke-dasharray: 2 4;
-        stroke: $vzb-color-grey;
+        stroke-dasharray: 4 4;
+        stroke: $vzb-color-black;
         opacity: 0;
       }
       .vzb-bc-line {
@@ -316,6 +343,7 @@
 
       .vzb-bc-axis-x,
       .vzb-bc-axis-y {
+        @extend %vzb-chart-axis-presentation;
         text {
           font-size: $vzb-font-size-larger;
         }

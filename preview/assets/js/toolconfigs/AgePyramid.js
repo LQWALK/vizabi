@@ -8,34 +8,37 @@ var VIZABI_MODEL = {
       "delayThresholdX2": 0,
       "delayThresholdX4": 0,
       "immediatePlay": true,
-      "delay": 1500
+      "delay": 1500,
+      "dim": "time"
     },
     "entities": {
       "dim": "geo",
       "show": {
-        "geo": ["*"]
+        "geo": {
+          "$in": ["zaf"]
+        }
       }
     },
     "entities_colorlegend": {
       "dim": "geo",
       "show": {
-        "is--country": true
+        "geo": {
+          "$in": ["zaf"]
+        }
       }
     },
     "entities_age": {
       "dim": "age",
       "show": {
-        "age": [
-          [0, 95]
-        ]
+        "age": {
+          "$lte": 95,
+          "$gte": 0
+        }
       },
-      "grouping": 1,
-      "_multiple": true
+      "grouping": 1
     },
     "entities_stack": {
-      "space": ["entities_age", "entities_side"],
-      "dim": "education_attainment",
-      "_multiple": true
+      "dim": "education_attainment"
     },
     "entities_side": {
       "dim": "population_group"
@@ -54,7 +57,8 @@ var VIZABI_MODEL = {
         "use": "indicator",
         "which": "age",
         "domainMax": 100,
-        "domainMin": 0
+        "domainMin": 0,
+        "_important": false
       },
       "axis_x": {
         "use": "indicator",
@@ -63,12 +67,15 @@ var VIZABI_MODEL = {
       "color": {
         "use": "property",
         "which": "education_attainment",
-        "colorlegend": "marker_colorlegend"
+        "allow": {
+          "scales": ["ordinal"]
+        },
+        "syncModels": ["marker_colorlegend"]
       },
-      "side": {
+      "hook_side": {
         "use": "property",
         "which": "population_group"
-      }
+      },
     },
     "marker_side": {
       "space": ["entities", "entities_side", "time"],
@@ -78,9 +85,7 @@ var VIZABI_MODEL = {
       }
     },
     "marker_colorlegend": {
-      "space": ["entities_stack"],
-      "type": "geometry",
-      "shape": "svg",
+      "space": ["entities_colorlegend"],
       "label": {
         "use": "property",
         "which": "education_attainment"
@@ -93,6 +98,39 @@ var VIZABI_MODEL = {
         "use": "property",
         "which": "shape_lores_svg"
       }
+    },
+    "entities_tags": {
+      "dim": "tag"
+    },
+    "marker_tags": {
+      "space": ["entities_tags"],
+      "label": {
+        "use": "property",
+        "which": "name"
+      },
+      "hook_parent": {
+        "use": "property",
+        "which": "parent"
+      }
     }
+  },
+  "ui": {
+    "buttons":['colors', 'inpercent','moreoptions', 'fullscreen'],
+    "dialogs": {
+      'popup': ['colors', 'moreoptions'], 
+      'sidebar': ['colors'], 
+      'moreoptions': ['opacity', 'speed', 'colors','presentation', 'about']
+    }
+  },
+  "data": {
+    "reader": "csv",
+    "path": "data/zaf/waffles/ddf--datapoints--population--by--year--age--population_group--education_attainment.csv",
+    "splash": false
   }
+};
+
+var EXT_RESOURCES = {
+  "host": LOCAL_URL,
+  "preloadPath": "data/zaf/",
+  "dataPath": "data/zaf/waffles/"
 };

@@ -17,7 +17,7 @@ var MCSelectList = Class.extend({
       .concat(_this.groupedPointers)
       .concat(_this.stackedPointers)
       .filter(function (f) {
-        return _this.model.entities.isSelected(f);
+        return _this.model.marker.isSelected(f);
       }).sort(function (a, b) {
         if (a.sortValue && b.sortValue) {
           if(a.sortValue[1] === b.sortValue[1]) {
@@ -50,14 +50,14 @@ var MCSelectList = Class.extend({
           .on("click", function (d, i) {
             if (utils.isTouchDevice()) return;
             d3.event.stopPropagation();
-            _this.model.entities.clearHighlighted();
-            _this.model.entities.selectEntity(d);
+            _this.model.marker.clearHighlighted();
+            _this.model.marker.selectMarker(d);
             d3.event.stopPropagation();
           })
           .onTap(function (d, i) {
             d3.select("#" + d.geo + "-label-" + _this._id).remove();
-            _this.model.entities.clearHighlighted();
-            _this.model.entities.selectEntity(d);
+            _this.model.marker.clearHighlighted();
+            _this.model.marker.selectMarker(d);
           });
         var labelCloseGroup = label.select("g.vzb-mc-label-x")
         if (!utils.isTouchDevice()){
@@ -79,18 +79,18 @@ var MCSelectList = Class.extend({
       .on("mousemove", function (d, i) {
         if (utils.isTouchDevice()) return;
         _local.showCloseCross(d, true);
-        _this.model.entities.highlightEntity(d);
+        _this.model.marker.highlightMarker(d);
       })
       .on("mouseout", function (d, i) {
         if (utils.isTouchDevice()) return;
         _local.showCloseCross(d, false);
-        _this.model.entities.clearHighlighted();
+        _this.model.marker.clearHighlighted();
 
       })
       .on("click", function (d, i) {
         if (utils.isTouchDevice()) return;
-        _this.model.entities.clearHighlighted();
-        _this.model.entities.selectEntity(d);
+        _this.model.marker.clearHighlighted();
+        _this.model.marker.selectMarker(d);
       });
   },
 
@@ -114,12 +114,14 @@ var MCSelectList = Class.extend({
 
     var groupLabels = _this.model.marker.color.getColorlegendMarker().label.getItems();
 
+    var isRTL = _this.model.locale.isRTL();
+
     _this.selectList
       .attr("transform", function (d, i) {
         if(d.aggrLevel != currentAggrLevel) aggrLevelSpacing += fontHeight;
         var spacing = fontHeight * i + titleHeight * 1.5 + aggrLevelSpacing;
         currentAggrLevel = d.aggrLevel;
-        return "translate(0," + spacing + ")";
+        return "translate(" + (isRTL ? _this.width : 0) + "," + spacing + ")";
       })
       .each(function (d, i) {
 
@@ -136,7 +138,7 @@ var MCSelectList = Class.extend({
         var string = name + ": " + formatter(number) + (i === 0 ? " "+ _this.translator("mount/people") : "");
 
         var text = view.selectAll(".vzb-mc-label-text")
-          .attr("x", fontHeight)
+          .attr("x", (isRTL ? -1 : 1) * fontHeight)
           .attr("y", fontHeight)
           .text(string)
           .style("font-size", fontHeight === maxFontHeight ? (fontHeight * fontSizeToFontHeight + "px") : null);
@@ -168,11 +170,11 @@ var MCSelectList = Class.extend({
 
           closeGroup.select("circle")
             .attr("r", contentBBox.height * .4)
-            .attr("cx", contentBBox.width + contentBBox.height * 1.1)
+            .attr("cx", (isRTL ? -1 : 1) * (contentBBox.width + contentBBox.height * 1.1))
             .attr("cy", contentBBox.height / 3);
 
           closeGroup.select("svg")
-            .attr("x", contentBBox.width + contentBBox.height * (1.1 - .4))
+            .attr("x", (isRTL ? -1 : 1) * (contentBBox.width + contentBBox.height * (1.1 - (isRTL ? -.4 : .4))))
             .attr("y", contentBBox.height * (1 / 3 - .4))
             .attr("width", contentBBox.height * .8)
             .attr("height", contentBBox.height * .8);
@@ -180,15 +182,15 @@ var MCSelectList = Class.extend({
 
         view.select(".vzb-mc-label-legend")
           .attr("r", fontHeight / 3)
-          .attr("cx", fontHeight * .4)
+          .attr("cx", (isRTL ? -1 : 1) * fontHeight * .4)
           .attr("cy", fontHeight / 1.5)
           .style("fill", _this.cScale(_this.values.color[d.KEY()]));
 
         view.onTap(function (d, i) {
           d3.event.stopPropagation();
-          _this.model.entities.highlightEntity(d);
+          _this.model.marker.highlightMarker(d);
           setTimeout(function() {
-            _this.model.entities.unhighlightEntity(d);
+            _this.model.marker.unhighlightMarker(d);
           }, 2000)
         });
       });

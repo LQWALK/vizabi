@@ -2,6 +2,7 @@ import * as utils from 'base/utils';
 import Component from 'base/component';
 import Class from 'base/class';
 import {close as iconClose} from 'base/iconset';
+import Data from 'models/data';
 
 /*!
  * VIZABI INDICATOR PICKER
@@ -481,11 +482,13 @@ var MenuItem = Class.extend({
       var parent = d3.select(this.parentNode);
       parent.classed('marquee', false);
       label.style("left", '');
+      label.style("right", '');
       if(toggle) {
         if(label.node().scrollWidth > label.node().offsetWidth) {
           label.attr("data-content", label.text());
           var space = 30;
           label.style("left", (-space - label.node().scrollWidth) + 'px');
+          label.style("right", (-space - label.node().scrollWidth) + 'px');
           parent.classed('marquee', true);
         }
       }
@@ -495,11 +498,13 @@ var MenuItem = Class.extend({
     var label = this.entity.select('.' + css.list_item_label).select('span');
     this.entity.classed('marquee', false);
     label.style("left", '');
+    label.style("right", '');
     if(toggle) {
       if(label.node().scrollWidth > label.node().offsetWidth) {
         label.attr("data-content", label.text());
         var space = 30;
         label.style("left", (-space - label.node().scrollWidth) + 'px');
+        label.style("right", (-space - label.node().scrollWidth) + 'px');
         this.entity.classed('marquee', true);
       }
     }
@@ -560,8 +565,8 @@ var TreeMenu = Component.extend({
       name: "time",
       type: "time"
     }, {
-      name: "language",
-      type: "language"
+      name: "locale",
+      type: "locale"
     }];
 
     this.context = context;
@@ -591,6 +596,10 @@ var TreeMenu = Component.extend({
 
   ready: function() {
     this.updateView();
+
+    //TODO: hack! potentially unsafe operation here
+    var tags = this.model.marker_tags.label.getData();
+    this._buildIndicatorsTree(tags);
   },
 
   readyOnce: function() {
@@ -660,11 +669,7 @@ var TreeMenu = Component.extend({
       //if(_this.menuEntity.direction != MENU_VERTICAL) _this.menuEntity.closeAllChildren();
     });
 
-    this.translator = this.model.language.getTFunction();
-
-    //TODO: hack! potentially unsafe operation here
-    var tags = this.model.marker_tags.label.getData();
-    _this._buildIndicatorsTree(tags);
+    this.translator = this.model.locale.getTFunction();
 
     _this._enableSearch();
 
@@ -686,10 +691,10 @@ var TreeMenu = Component.extend({
       //init the dictionary of tags
       var tags = {};
       tags[ROOT] = {id: ROOT, children: []};
-      tags[UNCLASSIFIED] = {id: UNCLASSIFIED, name: this.translator("buttons/unclassified"), children:[]};
+      tags[UNCLASSIFIED] = {id: UNCLASSIFIED, type: "folder", name: this.translator("buttons/unclassified"), children:[]};
 
       //populate the dictionary of tags
-      tagsArray.forEach(function(tag){tags[tag.tag] = {id: tag.tag, name: tag.name, children: []};})
+      tagsArray.forEach(function(tag){tags[tag.tag] = {id: tag.tag, name: tag.name, type: "folder", children: []};})
 
       //init the tag tree
       indicatorsTree = tags[ROOT];
@@ -706,14 +711,21 @@ var TreeMenu = Component.extend({
           tags[tag.parent].children.push(tags[tag.tag])
         }
       })
-      //add entries to different branches in the tree according to their tags
-      utils.forEach(this.model.marker.getConceptprops(), function(entry, id){
+      
+    utils.forEach(Data.instances, dataSource => {
+      var indicatorsDB = dataSource.getConceptprops();
+      var datasetName = dataSource.getDatasetName();
+      tags[datasetName] = {id: datasetName, type: "dataset", children:[]};
+      tags[ROOT].children.push(tags[datasetName]);
+      
+      utils.forEach(indicatorsDB, function(entry, id){
         //if entry's tag are empty don't include it in the menu
         if(entry.tags=="_none") return;
-        if(!entry.tags) entry.tags = UNCLASSIFIED;
+        if(!entry.tags) entry.tags = datasetName || UNCLASSIFIED;
+        var concept = { id: id, name: entry.name, unit: entry.unit, description: entry.description, dataSource: dataSource._name };
         entry.tags.split(",").forEach(function(tag){
           if(tags[tag.trim()]) {
-            tags[tag.trim()].children.push({id: id, name: entry.name, unit: entry.unit, description: entry.description});
+            tags[tag.trim()].children.push(concept);
           } else {
             //if entry's tag is not found in the tag dictionary
             if(!_this.consoleGroupOpen) {
@@ -721,10 +733,11 @@ var TreeMenu = Component.extend({
               _this.consoleGroupOpen = true;
             }
             utils.warn("tag '" + tag + "' for indicator '" + id + "'");
-            tags[UNCLASSIFIED].children.push({id: id, name: entry.name, unit: entry.unit, description: entry.description});
+            tags[UNCLASSIFIED].children.push(concept);
           }
         });
       });
+    });
     if(_this.consoleGroupOpen){
       console.groupEnd();
       delete _this.consoleGroupOpen;
@@ -739,7 +752,8 @@ var TreeMenu = Component.extend({
     tree.children.sort(
       utils
       //in each folder including root: put subfolders below loose items
-      .firstBy()(function(a,b){a=a.children?1:0;  b=b.children?1:0; return a-b;})
+      .firstBy()(function(a,b){a=a.type==="dataset"?1:0;  b=b.type==="dataset"?1:0; return b-a;})
+      .thenBy(function(a,b){a=a.children?1:0;  b=b.children?1:0; return a-b;})
       .thenBy(function(a,b){
         //in the root level put "time" on top and send "anvanced" to the bottom
         if(!isSubfolder){
@@ -1055,7 +1069,10 @@ var TreeMenu = Component.extend({
 
     var dataFiltered;
 
-    var indicatorsDB = _this.model.marker.getConceptprops();
+    var indicatorsDB = {}      
+    utils.forEach(Data.instances, 
+        dataSource => utils.deepExtend(indicatorsDB, dataSource.getConceptprops())
+    );
 
     var hookType = _this.model.marker[markerID]._type;
 
@@ -1126,19 +1143,21 @@ var TreeMenu = Component.extend({
         .attr("children", function(d) {
           return d.children ? "true" : null;
         })
+        .attr("type", function(d) {
+          return d.type ? d.type : null;
+        })
         .on('click', function(d) {
           var view = d3.select(this);
           //only for leaf nodes
           if(view.attr("children")) return;
           d3.event.stopPropagation();
-          _this._selectIndicator(d.id);
+          _this._selectIndicator({ concept: d.id, dataSource: d.dataSource });
         })
         .append('span')
         .text(function(d) {
           //Let the indicator "_default" in tree menu be translated differnetly for every hook type
-          var translated = d.id==="_default" ? _this.translator("indicator/_default/" + hookType) : d.name;
+          var translated = d.id==="_default" ? _this.translator("indicator/_default/" + hookType) : d.name||d.id;
           if(!translated && translated!=="") utils.warn("translation missing: NAME of " + d.id);
-          if(d.children) translated = "📁 " + translated;
           return translated||"";
         });
 
@@ -1156,7 +1175,7 @@ var TreeMenu = Component.extend({
           if(!d.children) {
             var deepLeaf = view.append('div').attr('class', css.menuHorizontal + ' ' + css.list_outer + ' ' + css.list_item_leaf);
             deepLeaf.on('click', function(d) {
-              _this._selectIndicator(d.id);
+              _this._selectIndicator({ concept: d.id, dataSource: d.dataSource });
             });
             var deepLeafContent = deepLeaf.append('div').classed(css.leaf + ' ' + css.leaf_content + " vzb-dialog-scrollable", true);
             deepLeafContent.append('span').classed(css.leaf_content_item + ' ' + css.leaf_content_item_title, true)
@@ -1261,11 +1280,13 @@ var TreeMenu = Component.extend({
             d3.event.stopPropagation();
             _this._setModel("scaleType", d, _this._markerID);
           });
+        
+        var mdlScaleType = _this.model.marker[markerID].scaleType;
 
         scaleTypes
           .classed(css.scaletypesDisabled, scaleTypesData.length < 2)
           .classed(css.scaletypesActive, function(d){
-            return d == _this.model.marker[markerID].scaleType && scaleTypesData.length > 1;
+            return (d == mdlScaleType || d === "log" && mdlScaleType === "genericLog") && scaleTypesData.length > 1;
           })
           .text(function(d){
             return _this.translator("scaletype/" + d);
@@ -1307,31 +1328,9 @@ var TreeMenu = Component.extend({
 
   _setModel: function(what, value, hookID) {
 
-    var indicatorsDB = this.model.marker.getConceptprops();
-
     var mdl = this.model.marker[hookID];
-
-    var obj = {};
-
-    obj[what] = value;
-
-    if(what == "which") {
-      if(indicatorsDB[value].use) obj.use = indicatorsDB[value].use;
-
-      if(indicatorsDB[value].scales) {
-        obj.scaleType = indicatorsDB[value].scales[0];
-      }
-
-      if(mdl.getType() === 'axis' || mdl.getType() === 'size') {
-        obj.domainMin = null;
-        obj.domainMax = null;
-        obj.zoomedMin = null;
-        obj.zoomedMax = null;
-      }
-    }
-
-    mdl.set(obj);
-
+    if (what == 'which') mdl.setWhich(value);
+    if (what == 'scaleType') mdl.setScaleType(value);
   }
 
 

@@ -7,10 +7,7 @@ var VIZABI_MODEL = {
       }      
     },
     "entities_colorlegend": {
-      "dim": "geo",
-      "show": {
-        "is--world_4region": true
-      }
+      "dim": "world_4region"
     },
     "entities_tags": {
       "dim": "tag"
@@ -18,7 +15,8 @@ var VIZABI_MODEL = {
     "time": {
       "startOrigin": "1800",
       "endOrigin": "2015",
-      "value": "2015"
+      "value": "2015",
+      "dim": "time"
     },
     "marker": {
       "space": ["entities", "time"],
@@ -61,6 +59,8 @@ var VIZABI_MODEL = {
     },
     "marker_colorlegend":{
       "space": ["entities_colorlegend"],
+      "opacityRegular": 0.8,
+      "opacityHighlightDim": 0.3,
       "label": {
         "use": "property",
         "which": "name"
@@ -90,6 +90,19 @@ var VIZABI_MODEL = {
     "datawarning": {
       "doubtDomain": [1800, 1950, 2015],
       "doubtRange": [1.0, 0.3, 0.2]
+    },
+    "buttons": ['colors', 'find', 'size', 'trails', 'lock', 'moreoptions', 'fullscreen', 'presentation'],
+    "dialogs": {
+      'popup': ['colors', 'find', 'size', 'zoom', 'moreoptions'], 
+      'sidebar': ['colors', 'find', 'size', 'zoom'], 
+      'moreoptions': ['opacity', 'speed', 'axes', 'size', 'colors', 'label', 'zoom','presentation', 'about']
     }
+  },
+  "data": {
+    "reader": "waffle",
+    //"reader": "ddf",
+    "splash": true,
+    "path": "https://waffle-server-dev.gapminderdev.org/api/ddf/"
+    //"path": "data/systema_globalis"
   }
 };

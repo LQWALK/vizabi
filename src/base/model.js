@@ -1,5 +1,4 @@
 import * as utils from 'base/utils';
-import Promise from 'base/promise';
 import EventSource, {DefaultEvent, ChangeEvent} from 'base/events';
 import Intervals from 'base/intervals';
 
@@ -24,6 +23,7 @@ var ModelLeaf = EventSource.extend({
 
     this._name = name;
     this._parent = parent;
+    this._root = parent._root;
     this.set(value, false, persistent);
     this.on(binds); // after super so there is an .events object
   },
@@ -40,6 +40,7 @@ var ModelLeaf = EventSource.extend({
 
       // set leaf properties
       if (persistent) this._persistentVal = val; // set persistent value if change is persistent.
+      this._previousVal = utils.deepClone(this._val);
       this._val = val;
       this._persistent = persistent;
 
@@ -68,12 +69,12 @@ var ModelLeaf = EventSource.extend({
 
 var Model = EventSource.extend({
 
-  _defaults: {},
-  
+  getClassDefaults: () => ({}),
+
   /**
    * A leaf model which has an object as value.
    * Needed when parsing plain JS objects. Enables distinction between models and leafs with object values.
-   **/ 
+   **/
   objectLeafs: [],
 
   /**
@@ -89,18 +90,17 @@ var Model = EventSource.extend({
     this._data = {};
     //holds attributes of this model
     this._parent = parent;
+    this._root = parent? parent._root : this;
     this._name = name;
     this._ready = false;
     this._readyOnce = false;
     //has this model ever been ready?
     this._loadedOnce = false;
-    this._loading = [];
     //array of processes that are loading
     this._intervals = getIntervals(this);
 
     //will the model be hooked to data?
     this._space = {};
-    this._spaceDims = {};
 
     this._dataId = false;
     this._limits = {};
@@ -109,7 +109,7 @@ var Model = EventSource.extend({
 
     // initial values
     // add defaults to initialValues
-    var initialValues = utils.deepExtend({}, this._defaults, values)
+    var initialValues = utils.deepExtend({}, this.getClassDefaults(), values)
     this.set(initialValues);
 
     // bind initial events
@@ -161,6 +161,9 @@ var Model = EventSource.extend({
       persistent = force;
       force = val;
     }
+    
+    //do nothing if setting an empty object
+    if (Object.keys(attrs).length === 0) return;
 
     //we are currently setting the model
     this._setting = true;
@@ -201,15 +204,16 @@ var Model = EventSource.extend({
 
     if(!setting || force) {
       this._setting = false;
-      if(!this.isHook() && !this.isLoading()) {
+      if (freezeCall && (!this.isHook() || !this.isLoading())) {
+        this.setTreeFreezer(false);
+      }
+      if (!this.isHook() && !this.isLoading()) {
         this.setReady();
       }
     }
 
     // if this set()-call was the one freezing the tree, now the tree can be unfrozen (i.e. all setting is done)
-    if (freezeCall) {
-      this.setTreeFreezer(false);
-    }
+
   },
 
   // standard model doesn't do anything with data
@@ -239,15 +243,13 @@ var Model = EventSource.extend({
     return this._type;
   },
 
-
-
   /**
    * Gets all submodels of the current model
    * @param {Object} object [object=false] Should it return an object?
    * @param {Function} validationFunction Validation function
    * @returns {Array} submodels
    */
-  getSubmodels: function(object, validationFunction) {
+  getSubmodels: function(object = false, validationFunction) {
     var submodels = (object) ? {} : [];
     var validationFunction = validationFunction || function() {
       return true;
@@ -283,7 +285,7 @@ var Model = EventSource.extend({
         //persistent
         if(!persistent || dataItem.persistent) {
           var leafValue = dataItem.get(persistent);
-          if (utils.isDate(leafValue)) 
+          if (utils.isDate(leafValue))
             leafValue = _this.formatDate(leafValue);
           obj[i] = leafValue;
         }
@@ -315,7 +317,6 @@ var Model = EventSource.extend({
     for(var i in submodels) {
       submodels[i].clear();
     }
-    this._spaceDims = {};
     this.setReady(false);
     this.off();
     this._intervals.clearAllIntervals();
@@ -348,10 +349,6 @@ var Model = EventSource.extend({
     if(this._isLoading())
       return true;
 
-    //if loading something
-    if(this._loading.length > 0)
-      return true;
-
     //if not loading anything, check submodels
     var submodels = this.getSubmodels();
     var i;
@@ -362,28 +359,6 @@ var Model = EventSource.extend({
     }
 
     return false;
-  },
-
-  /**
-   * specifies that the model is loading data
-   * @param {String} p_id of the loading process
-   */
-  setLoading: function(p_id) {
-    //if this is the first time we're loading anything
-    if(!this.isLoading()) {
-      this.trigger('load_start');
-    }
-    //add id to the list of processes that are loading
-    this._loading.push(p_id);
-  },
-
-  /**
-   * specifies that the model is done with loading data
-   * @param {String} p_id of the loading process
-   */
-  setLoadingDone: function(p_id) {
-    this._loading = utils.without(this._loading, p_id);
-    this.setReady();
   },
 
   /**
@@ -399,7 +374,7 @@ var Model = EventSource.extend({
     }
     //only ready if nothing is loading at all
     var prev_ready = this._ready;
-    this._ready = !this.isLoading() && !this._setting && !this._loadCall;
+    this._ready = !this.isLoading() && !this._setting;
     // if now ready and wasn't ready yet
     if(this._ready && prev_ready !== this._ready) {
       if(!this._readyOnce) {
@@ -410,14 +385,20 @@ var Model = EventSource.extend({
     }
   },
 
+  setInterModelListeners: function() {
+    utils.forEach(this.getSubmodels(),
+      subModel => subModel.setInterModelListeners()
+    );
+  },
+
   startPreload: function() {
-    
+
     var promises = [];
     promises.push(this.preloadData());
 
-    utils.forEach(this.getSubmodels(), 
+    utils.forEach(this.getSubmodels(),
       subModel => promises.push(subModel.startPreload())
-    ); 
+    );
 
     return Promise.all(promises);
   },
@@ -437,23 +418,17 @@ var Model = EventSource.extend({
    */
   startLoading: function(opts) {
 
-    var _this = this;
+    var promises = [];
+    promises.push(this.loadData(opts));
 
-    return new Promise(function(resolve, reject) {
+    utils.forEach(this.getSubmodels(), 
+      subModel => promises.push(subModel.startLoading(opts))
+    );
 
-      var promises = [];
-
-      promises.push(_this.loadData(opts));
-      promises.push(_this.loadSubmodels(opts));
-
-      var everythingLoaded = Promise.all(promises);
-      everythingLoaded.then(
-        function() { resolve(); _this.onSuccessfullLoad(); },
-        function() { reject(); _this.triggerLoadError(); }
-      );
-
-    });
-
+    return Promise.all(promises).then(
+      this.onSuccessfullLoad.bind(this),
+      this.triggerLoadError.bind(this)
+    );
   },
 
   loadData: function(opts) {
@@ -472,24 +447,23 @@ var Model = EventSource.extend({
 
   onSuccessfullLoad: function() {
 
-    var _this = this;
-
     this.validate();
-    utils.timeStamp('Vizabi Model: Model loaded: ' + this.name + '(' + this._id + ')');
+    utils.timeStamp('Vizabi Model: Model loaded: ' + this._name + '(' + this._id + ')');
     //end this load call
     this._loadedOnce = true;
 
-    //we need to defer to make sure all other submodels
-    //have a chance to call loading for the second time
     this._loadCall = false;
     this.setTreeFreezer(false);
 
+    //we need to defer to make sure all other submodels
+    //have a chance to call loading for the second time
     utils.defer(
-      function() { _this.setReady(); }
+      () => this.setReady()
     );
   },
 
-  triggerLoadError: function() {
+  triggerLoadError: function(err) {
+    utils.error(err);
     this.trigger('load_error');
   },
 
@@ -608,7 +582,7 @@ var Model = EventSource.extend({
    * @return {Object} defaults of this model, and when available overwritten by submodel defaults
    */
   getDefaults: function() {
-    return utils.deepExtend({}, this._defaults, this.getSubmodelDefaults());
+    return utils.deepExtend({}, this.getClassDefaults(), this.getSubmodelDefaults());
   },
 
   /**
@@ -698,7 +672,7 @@ function bindSetterGetter(model, prop) {
  * @param {String} attr Name of submodel
  * @param {Object} val Initial values
  * @param {Object} ctx context / parent model
- * @param {Boolean} persistent true if the change is a persistent change 
+ * @param {Boolean} persistent true if the change is a persistent change
  * @returns {Object} model new submodel
  */
 function initSubmodel(attr, val, ctx, persistent) {
@@ -723,10 +697,8 @@ function initSubmodel(attr, val, ctx, persistent) {
       'change': onChange,
       //loading has started in this submodel (multiple times)
       'hook_change': onHookChange,
-      //loading has started in this submodel (multiple times)
-      'load_start': onLoadStart,
-      //loading has failed in this submodel (multiple times)
-      'load_error': onLoadError,
+      // error triggered in loading
+      'load_error': evt => ctx.trigger(evt),
         //loading has ended in this submodel (multiple times)
       'ready': onReady
     };
@@ -747,7 +719,7 @@ function initSubmodel(attr, val, ctx, persistent) {
       let Modl = Model.get(modelType, true);
       if (!Modl) {
         try {
-          Modl = require(`../models/${modelType}`);
+          Modl = require('../models/' + modelType).default;
         } catch (err) {
           Modl = Model;
         }
@@ -767,13 +739,6 @@ function initSubmodel(attr, val, ctx, persistent) {
     ctx.trigger(evt, path);
   }
   function onHookChange(evt, vals) {
-    ctx.trigger(evt, vals);
-  }
-  function onLoadStart(evt, vals) {
-    ctx.setReady(false);
-    ctx.trigger(evt, vals);
-  }
-  function onLoadError(evt, vals) {
     ctx.trigger(evt, vals);
   }
   function onReady(evt, vals) {
