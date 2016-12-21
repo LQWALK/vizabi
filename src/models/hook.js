@@ -12,16 +12,18 @@ var Hook = DataConnected.extend({
   //that means, if X or Y doesn't have data at some point, we can't show markers
   _important: false,
 
+  objectLeafs: ['autogenerate'],
   dataConnectedChildren: ['use', 'which'],
   
   getClassDefaults: function() { 
     var defaults = {
-      data: 'data'
+      data: 'data',
+      which: null
     };
     return utils.deepExtend(this._super(), defaults)
   },
 
-  buildScale: function(){
+  buildScale: function() {
     //overloaded by specific hook models, like axis and color
   },
 
@@ -52,8 +54,12 @@ var Hook = DataConnected.extend({
     var newDataSource = this.getClosestModel(newValue.dataSource);
     var conceptProps = newDataSource.getConceptprops(newValue.concept);
 
-    if(conceptProps.use) obj.use = conceptProps.use;
-
+    if(newValue.which==="_default") {
+      obj.use = "constant";
+    }else{
+      if(conceptProps.use) obj.use = conceptProps.use;
+    }
+    
     if(conceptProps.scales) {
       obj.scaleType = conceptProps.scales[0];
     }
@@ -75,6 +81,12 @@ var Hook = DataConnected.extend({
   preloadData: function() {
     this.dataSource = this.getClosestModel(this.data);
     return this._super();
+  },
+
+  afterPreload: function() {
+    if (this.which == null && this.autogenerate) {
+      this.which = this.dataSource.getConceptByIndex(this.autogenerate.conceptIndex).concept;
+    }
   },
 
   /**
@@ -532,6 +544,18 @@ var Hook = DataConnected.extend({
    */
   getConceptprops: function() {
     return this.use !== 'constant' ? this.dataSource.getConceptprops(this.which) : {};
+  },
+  
+  /**
+   * Find if a current model is discrete
+   * @returns {boolean} true if it's a discrete model, false if continious
+   */
+  isDiscrete: function() {
+    return this.scaleType === "ordinal";
+  },
+  
+  validate: function() {
+    this._super();
   }
 });
 

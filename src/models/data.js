@@ -174,7 +174,8 @@ var DataModel = Model.extend({
 
     return new readerClass({
       path: this.path,
-      delimiter: this.delimiter
+      delimiter: this.delimiter,
+      nowManyFirstColumnsAreKeys: this.nowManyFirstColumnsAreKeys
     });
   },
 
@@ -273,29 +274,11 @@ var DataModel = Model.extend({
   handleConceptPropsResponse: function(dataId) {
 
     this.conceptDictionary = {_default: {concept_type: "string", use: "constant", scales: ["ordinal"], tags: "_root"}};
-
-    var dimensions = [];
-    utils.forEach(this._root.state._data, (mdl) => {
-      var dim = mdl.getDimension();
-      if(dim) dimensions.push(dim);
-    });
-    var animatable = this._root.state.time.dim;
+    this.conceptArray = [];
     
     this.getData(dataId).forEach(d => {
       var concept = {};
-      
-      //guessing the concept types based on state
-      if(!d.concept_type){
-        if(animatable === d.concept) {
-          d.concept_type = "time";
-        }else if(dimensions.indexOf(d.concept)>-1) {
-          d.concept_type = "entity_set";
-        }else{
-          d.concept_type = "measure";
-        }
-      }
-      
-      concept["use"] = d.concept_type;
+
       if(d.concept_type) concept["use"] = (d.concept_type=="measure" || d.concept_type=="time")?"indicator":"property";
       
       concept["concept_type"] = d.concept_type;
@@ -319,18 +302,24 @@ var DataModel = Model.extend({
           case "time": concept.scales=["time"]; break;
         }
       }
-      if(concept["scales"]==null) concept["scales"] = ["ordinal", "linear", "log"];
+      if(concept["scales"]==null) concept["scales"] = ["linear", "log"];
       if(d.interpolation){
         concept["interpolation"] = d.interpolation;
+      }else if(d.concept_type == "measure"){
+        concept["interpolation"] = concept.scales && concept.scales[0]=="log"? "exp" : "linear";
+      }else if(d.concept_type == "time"){
+        concept["interpolation"] = "linear";        
       }else{
-        if(concept.scales && concept.scales[0]=="log") concept["interpolation"] = "exp";
+        concept["interpolation"] = "stepMiddle";
       }
+      concept["concept"] = d.concept;
       concept["domain"] = d.domain;
       concept["tags"] = d.tags;
       concept["name"] = d.name||d.concept||"";
       concept["unit"] = d.unit||"";
       concept["description"] = d.description;
       this.conceptDictionary[d.concept] = concept;
+      this.conceptArray.push(concept);
     });
 
   },
@@ -345,6 +334,10 @@ var DataModel = Model.extend({
      }else{
        return this.conceptDictionary;
      }
+  },
+
+  getConceptByIndex: function(index) {
+    return this.conceptArray[index];
   },
   
   getDatasetName: function(){

@@ -57,7 +57,7 @@ var VIZABI_MODEL = {
       },
       "axis_s": {
         "use": "indicator",
-        "which": "sg_gini",
+        "which": "gapminder_gini",
         "scaleType": "linear"
       },
       "color": {
@@ -119,9 +119,7 @@ var VIZABI_MODEL = {
   },
   "data": {
     "reader": "waffle",
-    //"reader": "ddf",
     "splash": true,
     "path": "https://waffle-server-dev.gapminderdev.org/api/ddf/"
-    //"path": "data/systema_globalis"
   }
 };
