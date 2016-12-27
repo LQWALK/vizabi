@@ -44,11 +44,11 @@ describe('Web - Vizabi e2e test :: Bar rank Chart', function() {
     });
 
     buttonListAll.then(function(items) {
-      expect(items.length).toBe(4);
+      expect(items.length).toBe(6);
     });
 
     buttonListVisible.then(function(items) {
-      expect(items.length).toBe(4);
+      expect(items.length).toBe(5);
     });
 
   });

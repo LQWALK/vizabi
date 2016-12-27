@@ -59,7 +59,7 @@ describe('Web - Vizabi e2e test :: All', function() {
     sizeOption.getText().then(function (sizeOptionAsParameter) {
       var sizeOptionText = sizeOptionAsParameter;
       // Comparing the size option name
-      var findMeSizeOption = "Population";
+      var findMeSizeOption = "Population, total";
       expect(findMeSizeOption).toBe(sizeOptionText);
     });
   });
@@ -156,7 +156,7 @@ describe('Web - Vizabi e2e test :: All', function() {
     sizeOption.getText().then(function (sizeOptionAsParameter) {
       var sizeOptionText = sizeOptionAsParameter;
       // Comparing the size option name
-      var findMeSizeOption = "Population";
+      var findMeSizeOption = "Population, total";
       expect(findMeSizeOption).toBe(sizeOptionText);
     });
 
@@ -307,6 +307,7 @@ describe('Web - Vizabi e2e test :: All', function() {
     });
 
     //Clciking play
+    browser.sleep(5000);
     play.click();
     browser.sleep(5000);
 

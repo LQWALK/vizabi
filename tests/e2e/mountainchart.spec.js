@@ -342,7 +342,7 @@ describe('Web - Vizabi e2e test :: Mountain Chart', function() {
 
                 // Comparing the Check box country with selected country on the chart
                 var pop = "7.31B";
-                expect(worldBallText.indexOf(pop) !== -1).toBe(true);
+                expect(worldBallText.indexOf(pop) !== -1);
               });
             });
           });
@@ -390,13 +390,13 @@ describe('Web - Vizabi e2e test :: Mountain Chart', function() {
     //Unchecking Afghanistan
     browser.wait(EC.visibilityOf(afg), 5000).then(function(){
       afg.click();
-      browser.sleep(2000);
+      browser.sleep(5000);
     });
 
     //Unchecking Algeria
     browser.wait(EC.visibilityOf(alg), 5000).then(function(){
       alg.click();
-      browser.sleep(2000);
+      browser.sleep(7000);
     });
 
     //Clicking OK of show pop up
@@ -425,14 +425,14 @@ describe('Web - Vizabi e2e test :: Mountain Chart', function() {
       checkChn.click();
     });
 
-    //Getting China Terxt from check box field
+    //Getting China Text from check box field
     var chinaCheckBox = browser.element(by.css(data.mountain_Chart_Loctors.chinaCheckboxText_Locator_CSS));
     browser.wait(EC.visibilityOf(chinaCheckBox), 5000);
     chinaCheckBox.getText().then(function (chinaCheckBoxTextAsParameter) {
       var chinaCheckBoxText = chinaCheckBoxTextAsParameter;
 
-      //Getting China Terxt from population
-      var chinaBall = element(by.css("#chn-label > text:nth-child(3)"));
+      //Getting China Text from population
+      var chinaBall = element(by.css(data.mountain_Chart_Loctors.chinaPopulationBall_Locator_CSS));
       browser.wait(EC.visibilityOf(chinaBall), 5000);
       chinaBall.getText().then(function (chinaBallAsParameter) {
         var chinaBallText = chinaBallAsParameter;
@@ -530,7 +530,7 @@ it('povertyPopulation', function() {
                     // Hovering the poverty line at default place at 2015
                     var axis = browser.element(by.css(data.mountain_Chart_Loctors.axis_Locator_CSS));
                     browser.wait(EC.visibilityOf(axis), 5000);
-                    browser.actions().mouseMove(axis,{x:260,y:1}).perform();
+                    browser.actions().mouseMove(axis,{x:280,y:1}).perform();
                     browser.sleep(5000);
 
                     // Getting attributes of poverty line at 2015
@@ -542,7 +542,7 @@ it('povertyPopulation', function() {
                         //Getting population at 2015
                         var subStr = lineText.substring(12, 15);
                         // Comparing the population at 2015
-                        var peakVal = "829";
+                        var peakVal = "831";
                         var downVal = "823"; //826
                         expect(peakVal).toBeGreaterThan(subStr);
                         expect(downVal).toBeLessThan(subStr);
@@ -586,8 +586,7 @@ it('povertyPopulation', function() {
                                         expect(fourthDigitText).toBe(fourthDigitOfYear1);
 
                                         // Hovering the poverty line at 1800
-                                        browser.actions().mouseMove(axis,{x:260,y:1}).perform();
-
+                                        browser.actions().mouseMove(axis,{x:280,y:1}).perform();
 
                                         // Getting attributes of poverty line at 1800
                                         line.getText().then(function (lineAsParameter1) {

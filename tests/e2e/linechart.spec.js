@@ -45,7 +45,7 @@ describe('Web - Vizabi e2e test :: Line Chart', function() {
     });
 
     buttonListAll.then(function(items) {
-      expect(items.length).toBe(5);
+      expect(items.length).toBe(6);
     });
 
     buttonListVisible.then(function(items) {

@@ -162,7 +162,7 @@ describe('Web - Vizabi e2e test :: Bubble Chart', function() {
             slider.getLocation().then(function (beforePlaySliderLocation) {
               var beforePlaySliderDivLocation = beforePlaySliderLocation.x;
               play.click();
-              browser.sleep(180000);
+              browser.sleep(40000);
 
               //Getting slider position after play
               slider.getLocation().then(function (afterPlaySliderLocation) {
@@ -399,7 +399,7 @@ describe('Web - Vizabi e2e test :: Bubble Chart', function() {
     });
 
     // Giving country name in Search bar
-    var search =element(by.css("#vzb-find-search"));
+    var search =element(by.css(data.bubble_Chart_Loctors.search_Locator_CSS));
     browser.wait(EC.visibilityOf(search), 5000).then(function(){
       search.sendKeys("United States");
     });
