@@ -34,6 +34,7 @@ var defaultPalettes = {
 
 var ColorModel = Hook.extend({
 
+  _important: true,
   /**
    * Default values for this model
    */

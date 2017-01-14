@@ -533,8 +533,7 @@ var BubbleMapComponent = Component.extend({
       var valueL = _this.values.label[d[_this.KEY]];
 
       d.hidden_1 = d.hidden;
-      d.hidden = (!valueS && valueS !== 0)|| valueX==null || valueY==null;
-
+      d.hidden = (!valueS && valueS !== 0) || (!valueC && valueC !== 0) || valueX==null || valueY==null;
 
       if(d.hidden !== d.hidden_1) {
         if(duration){

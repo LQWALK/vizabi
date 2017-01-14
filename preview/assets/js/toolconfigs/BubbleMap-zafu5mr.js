@@ -20,7 +20,7 @@ var VIZABI_MODEL = {
       "space": ["entities", "time"],
       "label": {
         "use": "property",
-        "which": "municipality2011"
+        "which": "name"
       },
       "size": {
         "use": "indicator",
@@ -46,7 +46,8 @@ var VIZABI_MODEL = {
         "scaleType": "linear",
         "palette": {
           "0": "#AAFFAA",
-          "50": "#E1CE00",
+          "20": "#AAFF55",
+          "50": "#FA5555",
           "100": "#FF0000",
           "_default": "#ffb600"
         },
