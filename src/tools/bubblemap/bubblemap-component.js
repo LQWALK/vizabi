@@ -339,10 +339,10 @@ var BubbleMapComponent = Component.extend({
         }
 
         _this.yTitleEl.select("text")
-          .text(_this.translator("buttons/size") + ": " + formatterS(valueS) + " " + unitS);
+          .text(_this.translator("buttons/size") + ": " + this.strings.title.S + ": " + formatterS(valueS) + " " + unitS);
 
         _this.cTitleEl.select("text")
-          .text(_this.translator("buttons/color") + ": " +
+          .text(_this.translator("buttons/color") + ": " + this.strings.title.C + ": " +
             (valueC || valueC===0 ? formatterC(valueC) + " " + unitC : _this.translator("hints/nodata")));
 
         this.yInfoEl.classed("vzb-hidden", true);
