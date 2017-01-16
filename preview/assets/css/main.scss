@@ -19,3 +19,8 @@ $vzbp-font-family-editor: $monospace;
 @import "utils";
 @import "editor";
 @import "dropdown";
+
+
+#vzbp-nav, #vzbp-sidebar, #vzbp-state-editor {
+	display: none;
+}
