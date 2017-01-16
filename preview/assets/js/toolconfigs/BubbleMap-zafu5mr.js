@@ -17,8 +17,7 @@ var VIZABI_MODEL = {
       "dim": "tag"
     },
     "marker": {
-      "space": ["entities", "time"],      
-      "opacityRegular": 0,
+      "space": ["entities", "time"], 
       "label": {
         "use": "property",
         "which": "name"
@@ -97,7 +96,7 @@ var VIZABI_MODEL = {
     },
     "map": {
       "scale": 0.8,
-      "colorGeo": true,
+      "colorGeo": false,
       "topology": {
         "path": "data/zaf-municipalities-2011.json",
         "objects": {
