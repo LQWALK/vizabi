@@ -47,8 +47,8 @@ var VIZABI_MODEL = {
         "palette": {
           "0": "#AAFFAA",
           "20": "#AAFF55",
-          "50": "#FA5555",
-          "100": "#FF0000",
+          "50": "#BA5555",
+          "100": "#AA0000",
           "_default": "#ffb600"
         },
         "syncModels": ["marker_colorlegend"]

@@ -102,3 +102,16 @@ script.
   VIZABI_PAGE_MODEL = Vizabi.utils.deepExtend({}, VIZABI_MODEL);
 
   VIZ = Vizabi("#{tool}", placeholder, Vizabi.utils.deepExtend({}, VIZABI_MODEL, URL.model));
+
+  var stopped = false;
+  VIZ.model.state.time.on('change', function(evt) {
+    if (evt.source._name == "value" && this.formatDate(this.value) == '2005' && !stopped) {
+      this.value = '2004';
+      stopped = true;
+      this.pause();
+    }
+  });
+
+  d3.select('body').on('keyup', function() {
+    parent.keyCode(event)
+  });
