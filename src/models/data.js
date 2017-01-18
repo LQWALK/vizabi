@@ -63,23 +63,18 @@ var DataModel = Model.extend({
     if (this.dataset) query.dataset = this.dataset;
     if (this.version) query.version = this.version;
 
-    var dataId = this.getDataId(query);
+    utils.timeStamp('Vizabi Data: Loading Data');
+    EventSource.freezeAll([
+      'hook_change',
+      'resize'
+    ]);
+    return this.loadFromReader(query, parsers)
+      .then(dataId => {
+        EventSource.unfreezeAll();
+        return dataId;
+      })
+      .catch((error) => this.handleReaderError(error, query));
 
-    if (dataId) {
-      return Promise.resolve(dataId);
-    } else {
-      utils.timeStamp('Vizabi Data: Loading Data');
-      EventSource.freezeAll([
-        'hook_change',
-        'resize'
-      ]);
-      return this.loadFromReader(query, parsers)
-        .then(dataId => {
-          EventSource.unfreezeAll();
-          return dataId;
-        })
-        .catch((error) => this.handleReaderError(error, query));
-    }
 
   },
 
@@ -105,62 +100,53 @@ var DataModel = Model.extend({
       // add select to base query and return the base query promise
       Array.prototype.push.apply(this.queryQueue[queryMergeId].query.select.value, query.select.value);
       utils.extend(this.queryQueue[queryMergeId].parsers, parsers);
-      return this.queryQueue[queryMergeId].promise;
+      return Promise.resolve(this.queryQueue[queryMergeId]);
 
     } else {
+      return Promise.resolve(this.queryQueue[queryMergeId] = {
+        dataId,
+        query,
+        parsers,
+        promise: () => {
+          return new Promise(function(resolve, reject) {
 
-      // set up base query
-      var promise = new Promise(function(resolve, reject) {
+            // remove double columns from select (resulting from merging)
+            // no double columns in formatter because it's an object, extend would've overwritten doubles
+            query.select.value = utils.unique(query.select.value);
 
-        // wait one execution round for the queue to fill up
-        utils.defer(function() {
-          // now the query queue is filled with all queries from one execution round
+            // execute the query with this reader
+            _this.readerObject.read(query, parsers).then(function(response) {
 
-          // remove double columns from select (resulting from merging)
-          // no double columns in formatter because it's an object, extend would've overwritten doubles
-          query.select.value = utils.unique(query.select.value);
+                //success reading
+                _this.checkQueryResponse(query, response);
 
-          // execute the query with this reader
-          _this.readerObject.read(query, parsers).then(function(response) {
+                _this._collection[dataId] = {};
+                _this._collectionPromises[dataId] = {};
+                var col = _this._collection[dataId];
+                col.data = response;
+                col.valid = {};
+                col.nested = {};
+                col.unique = {};
+                col.limits = {};
+                col.frames = {};
+                col.haveNoDataPointsPerKey = {};
+                col.query = query;
+                // col.sorted = {}; // TODO: implement this for sorted data-sets, or is this for the server/(or file reader) to handle?
 
-              //success reading
-              _this.checkQueryResponse(query, response);
+                // remove query from queue
+                _this.queryQueue[queryMergeId] = null;
+                resolve(dataId);
 
-              _this._collection[dataId] = {};
-              _this._collectionPromises[dataId] = {};
-              var col = _this._collection[dataId];
-              col.data = response;
-              col.valid = {};
-              col.nested = {};
-              col.unique = {};
-              col.limits = {};
-              col.frames = {};
-              col.haveNoDataPointsPerKey = {};
-              col.query = query;
-              // col.sorted = {}; // TODO: implement this for sorted data-sets, or is this for the server/(or file reader) to handle?
+              }, //error reading
+              function(err) {
+                _this.queryQueue[queryMergeId] = null;
+                reject(err);
+              }
+            );
 
-              // remove query from queue
-              _this.queryQueue[queryMergeId] = null;
-              resolve(dataId);
-
-            }, //error reading
-            function(err) {
-              _this.queryQueue[queryMergeId] = null;
-              reject(err);
-            }
-          );
-
-        });
+          });
+        }
       });
-
-
-      this.queryQueue[queryMergeId] = {
-        query: query,
-        parsers: parsers,
-        promise: promise
-      };
-
-      return this.queryQueue[queryMergeId].promise;
 
     }
 
@@ -279,57 +265,57 @@ var DataModel = Model.extend({
 
   },
 
-  handleConceptPropsResponse: function(dataId) {
+  handleConceptPropsResponse: function ({ promise }) {
+    return promise().then((dataId) => {
+      this.conceptDictionary = {_default: {concept_type: "string", use: "constant", scales: ["ordinal"], tags: "_root"}};
+      this.conceptArray = [];
 
-    this.conceptDictionary = {_default: {concept_type: "string", use: "constant", scales: ["ordinal"], tags: "_root"}};
-    this.conceptArray = [];
+      this.getData(dataId).forEach(d => {
+        var concept = {};
 
-    this.getData(dataId).forEach(d => {
-      var concept = {};
+        if(d.concept_type) concept["use"] = (d.concept_type=="measure" || d.concept_type=="time")?"indicator":"property";
 
-      if(d.concept_type) concept["use"] = (d.concept_type=="measure" || d.concept_type=="time")?"indicator":"property";
-
-      concept["concept_type"] = d.concept_type;
-      concept["sourceLink"] = d.indicator_url;
-      try {
-        concept["color"] = d.color && d.color !== "" ? JSON.parse(d.color) : null;
-      } catch (e) {
-        concept["color"] = null;
-      }
-      try {
-        concept["scales"] = d.scales ? JSON.parse(d.scales) : null;
-      } catch (e) {
-        concept["scales"] = null;
-      }
-      if(!concept.scales){
-        switch (d.concept_type){
-          case "measure": concept.scales=["linear", "log"]; break;
-          case "string": concept.scales=["nominal"]; break;
-          case "entity_domain": concept.scales=["ordinal"]; break;
-          case "entity_set": concept.scales=["ordinal"]; break;
-          case "time": concept.scales=["time"]; break;
+        concept["concept_type"] = d.concept_type;
+        concept["sourceLink"] = d.indicator_url;
+        try {
+          concept["color"] = d.color && d.color !== "" ? JSON.parse(d.color) : null;
+        } catch (e) {
+          concept["color"] = null;
         }
-      }
-      if(concept["scales"]==null) concept["scales"] = ["linear", "log"];
-      if(d.interpolation){
-        concept["interpolation"] = d.interpolation;
-      }else if(d.concept_type == "measure"){
-        concept["interpolation"] = concept.scales && concept.scales[0]=="log"? "exp" : "linear";
-      }else if(d.concept_type == "time"){
-        concept["interpolation"] = "linear";
-      }else{
-        concept["interpolation"] = "stepMiddle";
-      }
-      concept["concept"] = d.concept;
-      concept["domain"] = d.domain;
-      concept["tags"] = d.tags;
-      concept["name"] = d.name||d.concept||"";
-      concept["unit"] = d.unit||"";
-      concept["description"] = d.description;
-      this.conceptDictionary[d.concept] = concept;
-      this.conceptArray.push(concept);
+        try {
+          concept["scales"] = d.scales ? JSON.parse(d.scales) : null;
+        } catch (e) {
+          concept["scales"] = null;
+        }
+        if(!concept.scales){
+          switch (d.concept_type){
+            case "measure": concept.scales=["linear", "log"]; break;
+            case "string": concept.scales=["nominal"]; break;
+            case "entity_domain": concept.scales=["ordinal"]; break;
+            case "entity_set": concept.scales=["ordinal"]; break;
+            case "time": concept.scales=["time"]; break;
+          }
+        }
+        if(concept["scales"]==null) concept["scales"] = ["linear", "log"];
+        if(d.interpolation){
+          concept["interpolation"] = d.interpolation;
+        }else if(d.concept_type == "measure"){
+          concept["interpolation"] = concept.scales && concept.scales[0]=="log"? "exp" : "linear";
+        }else if(d.concept_type == "time"){
+          concept["interpolation"] = "linear";
+        }else{
+          concept["interpolation"] = "stepMiddle";
+        }
+        concept["concept"] = d.concept;
+        concept["domain"] = d.domain;
+        concept["tags"] = d.tags;
+        concept["name"] = d.name||d.concept||"";
+        concept["unit"] = d.unit||"";
+        concept["description"] = d.description;
+        this.conceptDictionary[d.concept] = concept;
+        this.conceptArray.push(concept);
+      });
     });
-
   },
 
   getConceptprops: function(which){

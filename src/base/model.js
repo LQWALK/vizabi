@@ -426,6 +426,13 @@ var Model = EventSource.extend({
     );
 
     return Promise.all(promises)
+      .then((result) => {
+        return Promise.all(
+          result.map((x) => {
+            return typeof x === 'object' && x !== null ? x.promise() : x;
+          })
+        );
+      })
       .then(this.onSuccessfullLoad.bind(this));
   },
 
