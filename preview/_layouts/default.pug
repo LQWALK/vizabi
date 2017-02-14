@@ -21,6 +21,7 @@ html(lang='en')
     link(rel='stylesheet', href='assets/vendor/css/font-awesome.min.css')
     link(rel='stylesheet', href='assets/css/main.css')
     link(rel='stylesheet', href='../dist/vizabi.css')
+    link(rel='stylesheet', href='/node_modules/vizabi-' + tool + '/build/' + tool + '.css')
   body
     #vzbp-main
       include ../_partials/nav.pug
@@ -44,6 +45,7 @@ html(lang='en')
     script(src='assets/js/_size-div.js')
     script(src='assets/js/_interaction.js')
     script(src='assets/js/_dropdowns.js')
+    script(src='/node_modules/vizabi-' + tool + '/build/' + tool + '.js')
 
     unless !tool
       include ../_partials/toolscript.pug

@@ -6,6 +6,7 @@ import Model from 'base/model';
 import Reader from 'base/reader';
 import Events from 'base/events';
 import globals from 'base/globals';
+import * as iconset from 'base/iconset';
 
 var Vzb = function(name, placeholder, external_model) {
   var tool = Tool.get(name);
@@ -51,6 +52,8 @@ utils.forEach(components, function(component, name) {
   Component.register(name, component);
 });
 
+const helpers = requireAll(require.context('./helpers', false, /\.js$/));
+
 
 //d3 addons
 
@@ -90,21 +93,21 @@ d3.scale.ordinal = d3.scaleOrdinal
 d3.time = {}
 d3.time.scale = d3.scaleTime
 d3.time.scale.utc = d3.scaleUtc
-d3.time.format = function(f) { 
+d3.time.format = function(f) {
   var format = d3.timeFormat(f);
   format.parse = d3.timeParse(f);
   return format;
-}
-d3.time.format.utc = function(f) { 
+};
+d3.time.format.utc = function(f) {
   var format = d3.utcFormat(f);
   format.parse = d3.utcParse(f);
   return format;
-}
-d3.time.format.iso = function(f) { 
+};
+d3.time.format.iso = function(f) {
   var format = d3.isoFormat(f);
   format.parse = d3.isoParse(f);
   return format;
-}
+};
 d3.round = function(x, n) {
   return n ? Math.round(x * (n = Math.pow(10, n))) / n : Math.round(x);
 };
@@ -127,5 +130,7 @@ Vzb.Model = Model;
 Vzb.Reader = Reader;
 Vzb.Events = Events;
 Vzb.utils = utils;
+Vzb.helpers = helpers;
+Vzb.iconset = iconset;
 
 export default Vzb;

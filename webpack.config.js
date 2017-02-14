@@ -101,7 +101,6 @@ const plugins = [
 
 if (__PROD__) {
   plugins.push(
-    new webpack.optimize.DedupePlugin(),
     new webpack.optimize.UglifyJsPlugin({
       sourceMap: true,
       compressor: {
