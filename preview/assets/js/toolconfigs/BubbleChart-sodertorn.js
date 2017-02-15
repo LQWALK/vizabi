@@ -9,7 +9,9 @@ var VIZABI_MODEL = {
     },
     "entities": {
       "dim": "basomrade",
-      "show": { }
+      "show": {
+        "size": "big"
+      }
     },
     "entities_colorlegend": {
       "dim": "municipality"
