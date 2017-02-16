@@ -32,7 +32,7 @@ var VIZABI_MODEL = {
       "axis_x": {
         "which": "mean_income_aged_lt_20",
         "use": "indicator",
-        "scaleType": "log",
+        "scaleType": "linear",
         "zoomedMin": "64000",
         "zoomedMax": "700000"
       },
