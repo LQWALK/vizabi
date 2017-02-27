@@ -24,6 +24,14 @@
       }
     }
 
+    .vzb-panhand .vzb-bc-bubbles-crop {
+      cursor: url('../../assets/cursors/grab.cur'), auto;
+    }
+
+    .vzb-panhand.vzb-zooming .vzb-bc-bubbles-crop {
+      cursor: url('../../assets/cursors/grabbing.cur'), auto;
+    }
+
     .vzb-bubblechart-svg {
       @extend %vzb-chart-svg;
 
@@ -63,6 +71,14 @@
             stroke: $vzb-color-grey;
           }
         }
+      }
+
+      &.vzb-panhand .vzb-bc-bubbles-crop {
+        cursor: grab;
+      }
+
+      &.vzb-panhand.vzb-zooming .vzb-bc-bubbles-crop {
+        cursor: grabbing;
       }
 
       &.vzb-zoomin .vzb-bc-bubbles-crop,
