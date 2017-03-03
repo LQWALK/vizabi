@@ -39,6 +39,12 @@ const AgePyramid = Component.extend({
       name: "entities_side",
       type: "entities"
     }, {
+      name: "entities_allpossible",
+      type: "entities"
+    }, {
+      name: "entities_geodomain",
+      type: "entities"
+    }, {
       name: "locale",
       type: "locale"
     }, {
@@ -107,9 +113,18 @@ const AgePyramid = Component.extend({
         if (!_this._readyOnce) return;
         _this._updateEntities();
       },
+      "change:marker.color.which": function(evt) {
+        if (!_this._readyOnce) return;
+        const stackDim = _this.model.marker.color.use == "constant" ? null : _this.model.marker.color.which;
+        _this.model.entities_geodomain.skipFilter = stackDim === _this.geoDomainDimension || _this.SIDEDIM === _this.geoDomainDimension;
+        _this.model.entities.clearShow();
+        _this.model.entities.set("dim", stackDim);
+        _this.model.entities_allpossible.set("dim", stackDim);
+      },
       "change:marker.side.which": function(evt) {
         if (!_this._readyOnce) return;
         const sideDim = _this.model.marker.side.use == "constant" ? null : _this.model.marker.side.which;
+        _this.model.entities_geodomain.skipFilter = sideDim === _this.geoDomainDimension || _this.STACKDIM === _this.geoDomainDimension;
         _this.model.marker.side.clearSideState();
         _this.model.entities_side.clearShow();
         _this.model.entities_side.set("dim", sideDim);
@@ -133,7 +148,7 @@ const AgePyramid = Component.extend({
         let doReturn = false;
         let _entitiesSameDimWithSide = null;
         utils.forEach(_this.model.marker.side._space, h => {
-          if (h.dim === _this.model.entities_side.dim && h._name !== _this.model.entities_side._name) {
+          if (h.dim === _this.model.entities_side.dim && h._name !== _this.model.entities_side._name && h._name !== _this.model.entities_geodomain._name) {
             _entitiesSameDimWithSide = h;
           }
         });
@@ -190,6 +205,16 @@ const AgePyramid = Component.extend({
   //   this.model.marker_side.hook_total.set(obj);
   // },
 
+  checkDimensions() {
+    const stackDim = this.model.entities.dim;
+    const sideDim = this.model.entities_side.dim;
+
+    this.colorUseConstant = this.model.marker.color.use == "constant";
+    this.stackSkip = this.colorUseConstant || stackDim == sideDim;
+    this.geoLess = stackDim !== this.geoDomainDimension && sideDim !== this.geoDomainDimension;
+    this.sideSkip = this.model.marker.side.use == "constant";
+  },
+
   /**
    * DOM is ready
    */
@@ -216,6 +241,9 @@ const AgePyramid = Component.extend({
     this.titleRight = this.element.select(".vzb-bc-title-right");
     this.year = this.element.select(".vzb-bc-year");
 
+    this.geoDomainDimension = this.model.entities_geodomain.getDimension();
+    this.geoDomainDefaultValue = this.model.entities_geodomain.show[this.geoDomainDimension]["$in"][0];
+
     this.on("resize", () => {
       _this._updateEntities();
     });
@@ -224,8 +252,14 @@ const AgePyramid = Component.extend({
       _newWidth(d, i) {
         d["x_"] = 0;
         let width;
-        if (_this.stackSkip) {
-          width = d[_this.PREFIXEDSIDEDIM] == d[_this.PREFIXEDSTACKDIM] ? _this.frameAxisX[d[_this.PREFIXEDSIDEDIM]][d[_this.AGEDIM] + _this.ageShift] : 0;
+        if (_this.geoLess && _this.stackSkip && _this.sideSkip) {
+          width = (_this.frameAxisX[d[_this.AGEDIM] + _this.ageShift] || {})[_this.geoDomainDefaultValue];
+        } else if (_this.geoLess && _this.stackSkip) {
+          width = _this.colorUseConstant || d[_this.PREFIXEDSIDEDIM] == d[_this.PREFIXEDSTACKDIM] ? (_this.frameAxisX[d[_this.PREFIXEDSIDEDIM]][d[_this.AGEDIM] + _this.ageShift] || {})[_this.geoDomainDefaultValue] : 0;
+        } else if (_this.geoLess && _this.sideSkip) {
+          width = (_this.frameAxisX[d[_this.PREFIXEDSTACKDIM]][d[_this.AGEDIM] + _this.ageShift] || {})[_this.geoDomainDefaultValue];
+        } else if (_this.stackSkip) {
+          width = _this.colorUseConstant || d[_this.PREFIXEDSIDEDIM] == d[_this.PREFIXEDSTACKDIM] ? _this.frameAxisX[d[_this.PREFIXEDSIDEDIM]][d[_this.AGEDIM] + _this.ageShift] : 0;
         } else if (_this.sideSkip) {
           width = _this.frameAxisX[d[_this.PREFIXEDSTACKDIM]][d[_this.AGEDIM] + _this.ageShift];
         } else {
@@ -275,8 +309,7 @@ const AgePyramid = Component.extend({
     this.AGEDIM = this.age.getDimension();
     this.TIMEDIM = this.model.time.getDimension();
     this.groupBy = this.age.grouping || 1;
-    this.stackSkip = this.STACKDIM == this.SIDEDIM;
-    this.sideSkip = _this.model.marker.side.use == "constant";
+    this.checkDimensions();
     this.updateUIStrings();
     this._updateIndicators();
 
@@ -300,7 +333,31 @@ const AgePyramid = Component.extend({
     let data;
     let val1, val2, shiftedAge;
     const groupBy = this.groupBy;
-    if (this.stackSkip) {
+    if (this.geoLess && this.stackSkip && this.sideSkip) {
+      data = dataBetweenFrames;
+      utils.forEach(_this.ageKeys, age => {
+        shiftedAge = +age + groupBy;
+        val1 = pValues[age][_this.geoDomainDefaultValue];
+        val2 = (nValues[shiftedAge] || {})[_this.geoDomainDefaultValue] || 0;
+        data[shiftedAge] = {};
+        data[shiftedAge][_this.geoDomainDefaultValue] = (val1 == null || val2 == null) ? null : val1 + ((val2 - val1) * fraction);
+      });
+      data[0] = {};
+      data[0][_this.geoDomainDefaultValue] = nValues[0][_this.geoDomainDefaultValue] || 0;
+    } else if (this.stackSkip && this.geoLess) {
+      utils.forEach(_this.sideKeys, side => {
+        data = dataBetweenFrames[side] = {};
+        utils.forEach(_this.ageKeys, age => {
+          shiftedAge = +age + groupBy;
+          val1 = pValues[side][age][_this.geoDomainDefaultValue];
+          val2 = (nValues[side][shiftedAge] || {})[_this.geoDomainDefaultValue] || 0;
+          data[shiftedAge] = {};
+          data[shiftedAge][_this.geoDomainDefaultValue] = (val1 == null || val2 == null) ? null : val1 + ((val2 - val1) * fraction);
+        });
+        data[0] = {};
+        data[0][_this.geoDomainDefaultValue] = nValues[side][0][_this.geoDomainDefaultValue] || 0;
+      });
+    } else if (this.stackSkip) {
       utils.forEach(_this.sideKeys, side => {
         data = dataBetweenFrames[side] = {};
         utils.forEach(_this.ageKeys, age => {
@@ -310,6 +367,19 @@ const AgePyramid = Component.extend({
           data[shiftedAge] = (val1 == null || val2 == null) ? null : val1 + ((val2 - val1) * fraction);
         });
         data[0] = nValues[side][0] || 0;
+      });
+    } else if (this.sideSkip && this.geoLess) {
+      utils.forEach(_this.stackKeys, stack => {
+        data = dataBetweenFrames[stack] = {};
+        utils.forEach(_this.ageKeys, age => {
+          shiftedAge = +age + groupBy;
+          val1 = pValues[stack][age][_this.geoDomainDefaultValue];
+          val2 = (nValues[stack][shiftedAge] || {})[_this.geoDomainDefaultValue] || 0;
+          data[shiftedAge] = {};
+          data[shiftedAge][_this.geoDomainDefaultValue] = (val1 == null || val2 == null) ? null : val1 + ((val2 - val1) * fraction);
+        });
+        data[0] = {};
+        data[0][_this.geoDomainDefaultValue] = nValues[stack][0][_this.geoDomainDefaultValue] || 0;
       });
     } else if (this.sideSkip) {
       utils.forEach(_this.stackKeys, stack => {
@@ -478,7 +548,7 @@ const AgePyramid = Component.extend({
     const sideKeysNF = Object.keys(this.model.marker.side.getItems());
     if (!sideKeysNF.length) sideKeysNF.push("undefined");
 
-    const keys = this.sideSkip ? [this.STACKDIM] : (this.stackSkip ? [this.SIDEDIM] : [this.STACKDIM, this.SIDEDIM]);
+    const keys = this.stackSkip && this.sideSkip ? [] : (this.sideSkip ? [this.STACKDIM] : (this.stackSkip ? [this.SIDEDIM] : [this.STACKDIM, this.SIDEDIM]));
     const limits = axisX.getLimitsByDimensions(keys.concat([this.AGEDIM, this.TIMEDIM]));
     const timeKeys = axisX.getUnique();
     const totals = {};
@@ -489,7 +559,23 @@ const AgePyramid = Component.extend({
       inpercentMaxLimits[s] = [];
     });
 
-    if (_this.sideSkip) {
+    if (_this.stackSkip && _this.sideSkip) {
+      utils.forEach(timeKeys, time => {
+        totals[time] = {};
+        let ageSum = 0;
+        const sideMaxLimits = [];
+        utils.forEach(_this.ageKeys, age => {
+          if (limits[age] && limits[age][time]) {
+            ageSum = limits[age][time].max;
+          }
+          sideMaxLimits.push(ageSum);
+        });
+        totals[time][sideKeysNF[0]] = ageSum;
+        const maxSideLimit = Math.max(...sideMaxLimits);
+        inpercentMaxLimits[sideKeysNF[0]].push(maxSideLimit / ageSum);
+        maxLimits[sideKeysNF[0]].push(maxSideLimit);
+      });
+    } else if (_this.sideSkip) {
       utils.forEach(timeKeys, time => {
         totals[time] = {};
         let ageSum = 0;
@@ -705,7 +791,9 @@ const AgePyramid = Component.extend({
       .merge(this.stackBars);
 
 
-    if (reorder) this.stackBars.order();
+    if (reorder) this.stackBars
+      .attr("fill", d => _this.cScale(d[prefixedStackDim]))
+      .order();
 
     // this.stackBars = this.bars.selectAll('.vzb-bc-bar')
     //   .selectAll('.vzb-bc-side')
