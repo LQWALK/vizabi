@@ -65,5 +65,5 @@ const SankeyDiagram = Tool.extend("SankeyDiagram", {
   }
 });
 
-export default SannkeyDiagram;
+export default SankeyDiagram;
 
