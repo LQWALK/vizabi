@@ -8,10 +8,7 @@ var VIZABI_MODEL = {
       "delay": 700
     },
     "entities": {
-      "dim": "basomrade",
-      "show": {
-        "size": "big"
-      }
+      "dim": "municipality"
     },
     "entities_colorlegend": {
       "dim": "municipality"
@@ -32,15 +29,13 @@ var VIZABI_MODEL = {
       "axis_x": {
         "which": "mean_income_aged_lt_20",
         "use": "indicator",
-        "scaleType": "linear",
-        "zoomedMin": "64000",
-        "zoomedMax": "700000"
+        "scaleType": "linear"
       },
       "size": {
         "which": "population_20xx_12_31",
         "use": "indicator",
         "scaleType": "linear",
-        "extent": [0, 0.4],
+        "extent": [0, 0.9],
         "allow": {
           "scales": ["linear"]
         }
@@ -93,7 +88,7 @@ var VIZABI_MODEL = {
     },
     "chart": {
       "labels": {"removeLabelBox": true},
-      "trails": false
+      "trails": true
     },
     "splash": true
   }
