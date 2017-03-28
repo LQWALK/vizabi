@@ -1,6 +1,5 @@
 import * as utils from "base/utils";
 import Component from "base/component";
-import sankey from "sankey-plugin";
 // Sankey Component
 const SankeyComponent = Component.extend({
 
