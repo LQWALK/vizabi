@@ -1,7 +1,6 @@
 import * as utils from "base/utils";
 import Component from "base/component";
-
-
+import sankey from "sankey-plugin";
 // Sankey Component
 const SankeyComponent = Component.extend({
 
@@ -134,9 +133,9 @@ const SankeyComponent = Component.extend({
 						"name": d.target
 					});
 					graph.links.push({
-						"source": d.source,
-						"target": d.target,
-						"value": +d.value
+						"phase_from": d.source,
+						"phase_to": d.target,
+						"amount": +d.value
 					});
 				});
 

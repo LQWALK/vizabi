@@ -1,4 +1,4 @@
-source,target,year,value
+phase_from,phase_to,year,amount
 "Coal, peat and oil shale",Production (ktoe),2014,485031
 "Coal, peat and oil shale",Imports (ktoe),2014,6362
 "Coal, peat and oil shale",Exports (ktoe),2014,-57196

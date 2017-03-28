@@ -1,8 +1,8 @@
 concept, name, concept_type,domain
 phase, Phase, entity_domain,
-source, Source, entity_set, phase
-target, Target, entity_set, phase
+phase_from, Source, entity_set, phase
+phase_to, Target, entity_set, phase
 year, Year, time,
-value, Amount, measure,
+amount, Amount, measure,
 name, , string,
 concept_type, , string,
