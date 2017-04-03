@@ -1,0 +1,8 @@
+concept, name, concept_type,domain
+phase, Phase, entity_domain,
+phase_from, Source, entity_set, phase
+phase_to, Target, entity_set, phase
+year, year, time,
+amount, amount, measure,
+name, , string,
+concept_type, , string,
