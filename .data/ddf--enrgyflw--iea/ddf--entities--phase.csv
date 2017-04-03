@@ -1,0 +1,28 @@
+phase,name
+"Coal, peat and oil shale",Coal and Shale
+"Crude,NGL and feedstocks",Crude and  Feedstocks
+Oil products,Oil
+Natural gas,Natural Gas
+Nuclear,Nuclear
+Renewables and waste,Renewables
+Electricity,Electricity
+Heat,Heat
+Total,Total
+Fossil Fuels,Fossil Fuel
+Renewable sources,Renewable Source
+Production (ktoe),Production
+Imports (ktoe),Import
+Exports (ktoe),Export
+Total primary energy supply (ktoe),Total Energy Supply
+Electricity plants (ktoe),Electricity Plant
+CHP plants (ktoe),CHP Plant
+Heat plants (ktoe),Heat Plant
+"Oil refineries, transformation (ktoe)",Oil Refineries
+Total final consumption (ktoe),Total Consumption
+Industry (ktoe),Industry
+Transport (ktoe),Transport
+Other (ktoe),Other
+of which: Residential (ktoe),Residential
+of which: Commerce and public services (ktoe),Commerce
+Electricity output (GWh),Electricity Output
+Total CO2 emissions - Fuel Combustion (Mt of CO2),CO2 Emissions

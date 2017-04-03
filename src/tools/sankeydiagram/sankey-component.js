@@ -114,7 +114,7 @@ const SankeyComponent = Component.extend({
       color = d3.scale.category20();
 
     // adjust the svg canvas on the page
-    d3.select("g")
+    d3.selectAll("vzb-sk-graph-svg")
       .attr("transform",
         "translate(" + margin.left + "," + margin.top + ")");
 
@@ -126,7 +126,7 @@ const SankeyComponent = Component.extend({
 
     const path = sankey.link();
 
-    // todo. fix data here so it's actually accessing something
+    // todo. actually get the data somehow. that's important
     data.forEach(d => {
       graph.nodes.push({
         "name": d.source
