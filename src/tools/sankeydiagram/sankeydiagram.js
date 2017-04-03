@@ -9,7 +9,6 @@ import buttonlist from "components/buttonlist/buttonlist";
 import treemenu from "components/treemenu/treemenu";
 import datawarning from "components/datawarning/datawarning";
 import datanotes from "components/datanotes/datanotes";
-import steppedSpeedSlider from "components/steppedspeedslider/steppedspeedslider";
 
 // SANKEY TOOL
 const SankeyDiagram = Tool.extend("SankeyDiagram", {
