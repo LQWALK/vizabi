@@ -3,17 +3,18 @@ import Tool from "base/tool";
 
 import SankeyComponent from "tools/sankeydiagram/sankey-component";
 
-import timeslider from "components/timeslider/timeslider";
+//import timeslider from "components/timeslider/timeslider";
 import dialogs from "components/dialogs/dialogs";
 import buttonlist from "components/buttonlist/buttonlist";
 import treemenu from "components/treemenu/treemenu";
 import datawarning from "components/datawarning/datawarning";
 import datanotes from "components/datanotes/datanotes";
+import steppedSpeedSlider from "components/steppedspeedslider/steppedspeedslider";
 
 // SANKEY TOOL
 const SankeyDiagram = Tool.extend("SankeyDiagram", {
 
-	/**
+  /**
 	 * Initializes the tool (Sankey Tool).
 	 * Executed once before any template is rendered.
 	 * @param {Object} placeholder Placeholder element for the tool
@@ -27,10 +28,6 @@ const SankeyDiagram = Tool.extend("SankeyDiagram", {
       component: SankeyComponent,
       placeholder: ".vzb-tool-viz",
       model: ["state.time", "state.entities", "state.marker", "locale", "ui"] //pass models to component
-    }, {
-      component: timeslider,
-      placeholder: ".vzb-tool-timeslider",
-      model: ["state.time", "state.entities", "state.marker", "ui"]
     }, {
       component: dialogs,
       placeholder: ".vzb-tool-dialogs",

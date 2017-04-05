@@ -1,6 +1,7 @@
 /* eslint-disable prefer-const */
 import * as utils from "base/utils";
 import Component from "base/component";
+import sankey from "tools/sankeydiagram/sankey-plugin";
 
 // Sankey Component
 const SankeyComponent = Component.extend({
@@ -57,14 +58,14 @@ const SankeyComponent = Component.extend({
 
     this._super(config, context);
 
-    this.isDataPreprocessed = true;
+    this.isDataPreprocessed = false;
 
 
   },
 
   readyOnce() {
 
-    this.element = d3.select(this.element);
+    this.element = d3.select(this);
 
     // select elements here before chart
     this.graph = this.element.select("vzb-sk-graph-svg");
@@ -91,7 +92,7 @@ const SankeyComponent = Component.extend({
     const units = "Widgets";
 
     //set up margins and height
-    const margin = {
+    this.margin  =  {
       top: 10,
       right: 10,
       bottom: 10,
@@ -102,7 +103,7 @@ const SankeyComponent = Component.extend({
     this.width = (parseInt(this.element.style("width"), 10) - this.margin.left - this.margin.right) || 0;
 
     //set up graph in same style as original example but empty
-    graph = {
+    let sGraph = {
       "nodes": [],
       "links": []
     };
@@ -128,13 +129,13 @@ const SankeyComponent = Component.extend({
 
     // todo. actually get the data somehow. that's important
     data.forEach(d => {
-      graph.nodes.push({
+      sGraph.nodes.push({
         "name": d.source
       });
-      graph.nodes.push({
+      sGraph.nodes.push({
         "name": d.target
       });
-      graph.links.push({
+      sGraph.links.push({
         "phase_from": d.source,
         "phase_to": d.target,
         "amount": +d.value
@@ -142,33 +143,33 @@ const SankeyComponent = Component.extend({
     });
 
     // return only the distinct / unique nodes
-    graph.nodes = d3.keys(d3.nest()
+    sGraph.nodes = d3.keys(d3.nest()
       .key(d => d.name)
-      .map(graph.nodes));
+      .map(sGraph.nodes));
 
     // loop through each link replacing the text with its index from node
-    graph.links.forEach((d, i) => {
-      graph.links[i].source = graph.nodes.indexOf(graph.links[i].source);
-      graph.links[i].target = graph.nodes.indexOf(graph.links[i].target);
+    sGraph.links.forEach((d, i) => {
+      sGraph.links[i].source = sGraph.nodes.indexOf(sGraph.links[i].source);
+      sGraph.links[i].target = sGraph.nodes.indexOf(sGraph.links[i].target);
     });
 
     //now loop through each nodes to make nodes an array of objects
     // rather than an array of strings
-    graph.nodes.forEach((d, i) => {
-      graph.nodes[i] = {
+    sGraph.nodes.forEach((d, i) => {
+      sGraph.nodes[i] = {
         "name": d
       };
     });
 
     sankey
-      .nodes(graph.nodes)
-      .links(graph.links)
+      .nodes(sGraph.nodes)
+      .links(sGraph.links)
       .layout(32);
 
     // add in the links
     const link = this.graph.append("g")
       .selectAll(".link")
-      .data(graph.links)
+      .data(sGraph.links)
       .enter()
       .append("path")
       .attr("class", "link")
@@ -184,7 +185,7 @@ const SankeyComponent = Component.extend({
     // add in the nodes
     const node = this.graph.append("g")
       .selectAll(".node")
-      .data(graph.nodes)
+      .data(sGraph.nodes)
       .enter()
       .append("g")
       .attr("class", "node")

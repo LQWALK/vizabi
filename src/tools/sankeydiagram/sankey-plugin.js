@@ -292,3 +292,5 @@ d3.sankey = function() {
 
   return sankey;
 };
+
+export default d3.sankey();
