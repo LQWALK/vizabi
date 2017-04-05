@@ -15,11 +15,11 @@ import steppedSpeedSlider from "components/steppedspeedslider/steppedspeedslider
 const SankeyDiagram = Tool.extend("SankeyDiagram", {
 
   /**
-	 * Initializes the tool (Sankey Tool).
-	 * Executed once before any template is rendered.
-	 * @param {Object} placeholder Placeholder element for the tool
-	 * @param {Object} external_model Model as given by the external page
-	 */
+   * * Initializes the tool (Sankey Tool).
+   * * Executed once before any template is rendered.
+   * * @param {Object} placeholder Placeholder element for the tool
+   * * @param {Object} external_model Model as given by the external page
+   * */
   init(placeholder, external_model) {
     this.name = "sankeydiagram";
 
